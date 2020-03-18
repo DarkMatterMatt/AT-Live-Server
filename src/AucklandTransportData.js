@@ -13,11 +13,17 @@ class AucklandTransportData {
 
         /* Processed data by short name
             {
-                "309": {
-                    shortName: "309",
-                    routeIds: Set(),
-                    shapeIds: Set(),
-                    polylines:   [[], []],
+                shortName: {
+                    shortName,
+                    routeIds: Set(routeId),
+                    shapeIds: Set(shapeId),
+                    polylines:   [[{ lat, lng }], [{ lat, lng }]],
+                    vehicles: Map(vehicleId: {
+                        vehicleId,
+                        lastUpdatedUnix,
+                        directionId,
+                        position: { lat, lng },
+                    }),
                 }
             }
         */
@@ -108,6 +114,7 @@ class AucklandTransportData {
                     routeIds:  new Set(),
                     shapeIds:  [new Set(), new Set()],
                     polylines: [[], []],
+                    vehicles:  new Map(),
                 });
             }
             this._byShortName.get(shortName).routeIds.add(route.route_id);
@@ -129,20 +136,55 @@ class AucklandTransportData {
                     processedRoute.polylines[0] = [];
                     continue;
                 }
+                // seems like the lowest number has the full route, while higher
+                //   numbers of the same version have additional peak-time routes?
                 const shapeId = [...processedRoute.shapeIds[i]].sort()[0];
                 const shape = await this.query(`gtfs/shapes/shapeId/${shapeId}`);
                 processedRoute.polylines[i] = shape.map(s => ({ lat: s.shape_pt_lat, lng: s.shape_pt_lon }));
             }
         }));
+
+        // load vehicle positions
+        const response = await this.query("public/realtime/vehiclelocations");
+        const nowUnix = (new Date()).getTime() / 1000;
+        for (const vehicle_ of response.entity) {
+            const { vehicle, id } = vehicle_;
+            if (!vehicle || !id) continue;
+
+            const { trip, position, timestamp } = vehicle;
+            if (!trip || !position || !timestamp) continue;
+
+            const [routeId, directionId] = [trip.route_id, trip.direction_id];
+            if (!routeId || !directionId) continue;
+
+            const [lat, lng] = [position.latitude, position.longitude];
+            if (!lat || !lng) continue;
+
+            // more than 60 seconds old, ignore it
+            if (timestamp < nowUnix - 60) continue;
+
+            this._byRouteId.get(routeId).vehicles.set(id, {
+                vehicleId:       id,
+                lastUpdatedUnix: timestamp,
+                directionId,
+                position:        {
+                    lat,
+                    lng,
+                },
+            });
+        }
     }
 
-    async lookForUpdates() {
+    async lookForUpdates(forceLoad) {
         const cachedVersion = this._cache.load("latest-version");
         await this.queryLatestVersion();
         if (cachedVersion !== this._version) {
             this._cache.clear();
             this._cache.store("latest-version", this._version);
-            this.load();
+            await this.load();
+        }
+        else if (forceLoad) {
+            await this.load();
         }
     }
 
