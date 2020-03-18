@@ -1,15 +1,18 @@
 const fetch = require("node-fetch");
 const pLimit = require("p-limit");
+const WebSocket = require("ws");
 const Cache = require("./Cache");
 const C = require("./config");
 
 class AucklandTransportData {
-    constructor(key, baseUrl) {
+    constructor(key, baseUrl, wsUrl) {
         this._key = key;
         this._baseUrl = baseUrl;
+        this._wsUrl = wsUrl;
         this._version = "";
         this._cache = new Cache("ATCache", C.aucklandTransport.maxCacheSizeInBytes, C.aucklandTransport.compressCache);
         this._pLimit = pLimit(C.aucklandTransport.maxParallelRequests);
+        this._ws = null;
 
         /* Processed data by short name
             {
@@ -104,6 +107,49 @@ class AucklandTransportData {
         catch (err) {
             return false;
         }
+    }
+
+    async startWebSocket() {
+        this._ws = new WebSocket(this._wsUrl + this._key);
+        this._ws.on("open", () => {
+            this._ws.send(JSON.stringify({
+                // appears to be a stripped-down GraphQL API
+                filters: { "vehicle.trip.scheduleRelationship": ["SCHEDULED"] },
+                query:   `{ vehicle {
+                    vehicle { id }
+                    trip { routeId directionId }
+                    position { latitude longitude }
+                    timestamp
+                } }`,
+            }));
+        });
+
+        this._ws.on("message", (data_) => {
+            const data = JSON.parse(data_);
+            if (!data) return;
+
+            const { vehicle, id } = data;
+            if (!vehicle || !id) return;
+
+            const { trip, position, timestamp } = vehicle;
+            if (!trip || !position || !timestamp) return;
+
+            const { routeId, directionId } = trip;
+            if (!routeId || !directionId) return;
+
+            const [lat, lng] = [position.latitude, position.longitude];
+            if (!lat || !lng) return;
+
+            this._byRouteId.get(routeId).vehicles.set(id, {
+                vehicleId:       id,
+                lastUpdatedUnix: timestamp,
+                directionId,
+                position:        {
+                    lat,
+                    lng,
+                },
+            });
+        });
     }
 
     async load() {

@@ -5,7 +5,7 @@ const C = require("./config");
 const app = C.useSSL ? uWS.SSLApp(C.ssl) : uWS.App();
 
 /* Subscribe / publish by route short names */
-const aucklandTransportData = new AucklandTransportData(C.aucklandTransport.key, C.aucklandTransport.baseUrl);
+const aucklandTransportData = new AucklandTransportData(C.aucklandTransport.key, C.aucklandTransport.baseUrl, C.aucklandTransport.webSocketUrl);
 
 (async () => {
     await aucklandTransportData.lookForUpdates("forceLoad");
