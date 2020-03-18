@@ -18,7 +18,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport.key,
         },
     });
 
-    app.get("/v1/:shortName", (res, req) => {
+    app.get("/v1/shortname/:shortName", (res, req) => {
         const shortName = req.getParameter(0).toUpperCase();
         res.writeHeader("Content-Type", "application/json");
 

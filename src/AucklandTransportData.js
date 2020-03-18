@@ -149,7 +149,7 @@ class AucklandTransportData {
         }));
 
         // load vehicle positions
-        const response = await this.query("public/realtime/vehiclelocations");
+        const response = await this.query("public/realtime/vehiclelocations", "noCache");
         const nowUnix = (new Date()).getTime() / 1000;
         for (const vehicle_ of response.entity) {
             const { vehicle, id } = vehicle_;
