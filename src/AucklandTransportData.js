@@ -48,6 +48,10 @@ class AucklandTransportData {
         this._cache.clear();
     }
 
+    getRouteByShortName(shortName) {
+        return this._byShortName.get(shortName);
+    }
+
     async query(url, noCache) {
         if (!noCache) {
             const cachedData = this._cache.load(url);
