@@ -24,6 +24,7 @@
     },
     "homepage": "https://github.com/DarkMatterMatt/AT-Live-Server#readme",
     "dependencies": {
+        "lz-string": "^1.4.4",
         "node-fetch": "^2.6.0",
         "node-localstorage": "^2.1.5",
         "p-limit": "^2.2.2",

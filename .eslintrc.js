@@ -43,7 +43,9 @@ module.exports = {
         }],
         "no-restricted-syntax": "off",
         "no-underscore-dangle": "off",
-        "no-unused-vars": ["warn"],
+        "no-unused-vars": ["warn", {
+            "argsIgnorePattern": "^_+$",
+        }],
         "quotes": ["error", "double"],
     },
 };
