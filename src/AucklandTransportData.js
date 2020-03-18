@@ -8,11 +8,23 @@ class AucklandTransportData {
         this._key = key;
         this._baseUrl = baseUrl;
         this._version = "";
-        this._routes = [];
-        this._trips = [];
-        this._shapes = [];
-        this._cache = new Cache("ATCache", C.aucklandTransport.maxCacheSizeInBytes);
+        this._cache = new Cache("ATCache", C.aucklandTransport.maxCacheSizeInBytes, C.aucklandTransport.compressCache);
         this._pLimit = pLimit(C.aucklandTransport.maxParallelRequests);
+
+        /* Processed data by short name
+            {
+                "309": {
+                    shortName: "309",
+                    routeIds: Set(),
+                    shapeIds: Set(),
+                    polylines:   [[], []],
+                }
+            }
+        */
+        this._byShortName = new Map();
+
+        /* Links to _byShortName */
+        this._byRouteId = new Map();
     }
 
     /** Note: the server must be run in New Zealand */
@@ -53,7 +65,7 @@ class AucklandTransportData {
         return result.response;
     }
 
-    async getLatestVersion() {
+    async queryLatestVersion() {
         const versions = await this.query("gtfs/versions", "noCache");
 
         // note: AT does this weird thing where a version will end at midnight on a day, but the next one
@@ -63,29 +75,12 @@ class AucklandTransportData {
         const filtered = versions.filter(v => v.startdate.split("T")[0] <= now && now <= v.enddate.split("T")[0]);
         if (filtered.length === 0) {
             console.error("No versions are currently active", versions);
-            return "";
+            this._version = "";
         }
-        return filtered[0].version;
-    }
-
-    async update() {
-        const cachedVersion = this._cache.load("latest-version");
-        const latestVersion = this.getLatestVersion();
-        if (cachedVersion !== latestVersion) {
-            this._cache.clear();
-            this._cache.store("latest-version", latestVersion);
-            await this.loadAllRoutes();
-            await this.loadAllTrips();
-            await this.loadAllShapes();
+        else {
+            this._version = filtered[0].version;
         }
-    }
-
-    beginAutoUpdates() {
-        this._autoUpdate = setInterval(() => this.update(), 5 * 60 * 1000);
-    }
-
-    stopAutoUpdates() {
-        clearInterval(this._autoUpdate);
+        return this._version;
     }
 
     async validateApiKey() {
@@ -101,21 +96,63 @@ class AucklandTransportData {
         }
     }
 
-    async loadAllRoutes() {
+    async load() {
         // routes are required to look up short names
-        this._trips = await this.query("gtfs/routes");
-    }
+        const routes = await this.query("gtfs/routes");
+        const filteredRoutes = routes.filter(r => r.route_id.endsWith(this._version));
+        for (const route of filteredRoutes) {
+            const shortName = route.route_short_name;
+            if (!this._byShortName.has(shortName)) {
+                this._byShortName.set(shortName, {
+                    shortName,
+                    routeIds:  new Set(),
+                    shapeIds:  [new Set(), new Set()],
+                    polylines: [[], []],
+                });
+            }
+            this._byShortName.get(shortName).routeIds.add(route.route_id);
+            this._byRouteId.set(route.route_id, this._byShortName.get(shortName));
+        }
 
-    async loadAllTrips() {
         // trips are required for fetching shapes
-        this._trips = await this.query("gtfs/trips");
+        const trips = await this.query("gtfs/trips");
+        const filteredTrips = trips.filter(t => t.trip_id.endsWith(this._version));
+        for (const trip of filteredTrips) {
+            this._byRouteId.get(trip.route_id).shapeIds[trip.direction_id].add(trip.shape_id);
+        }
+
+        // shapeIds => polylines
+        await Promise.allSettled(Array.from(this._byShortName, async ([_, processedRoute]) => {
+            for (let i = 0; i < 2; i++) {
+                /* eslint-disable no-param-reassign, no-await-in-loop */
+                if (processedRoute.shapeIds[i].size === 0) {
+                    processedRoute.polylines[0] = [];
+                    continue;
+                }
+                const shapeId = [...processedRoute.shapeIds[i]].sort()[0];
+                const shape = await this.query(`gtfs/shapes/shapeId/${shapeId}`);
+                processedRoute.polylines[i] = shape.map(s => ({ lat: s.shape_pt_lat, lng: s.shape_pt_lon }));
+            }
+        }));
     }
 
-    async loadAllShapes() {
-        await this.loadAllShapes();
-        const shapeIds = [...new Set(this._trips.map(t => t.shape_id))];
-        this._shapes = await Promise.all(shapeIds.map(id => this.query(`gtfs/shapes/shapeId/${id}`)));
+    async lookForUpdates() {
+        const cachedVersion = this._cache.load("latest-version");
+        await this.queryLatestVersion();
+        if (cachedVersion !== this._version) {
+            this._cache.clear();
+            this._cache.store("latest-version", this._version);
+            this.load();
+        }
+    }
+
+    startAutoUpdates() {
+        this._autoUpdate = setInterval(() => this.lookForUpdates(), 5 * 60 * 1000);
+    }
+
+    stopAutoUpdates() {
+        clearInterval(this._autoUpdate);
     }
 }
 
-module.exports = ATCache;
+module.exports = AucklandTransportData;
