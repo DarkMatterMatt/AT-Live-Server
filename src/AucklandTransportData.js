@@ -3,6 +3,12 @@ const pLimit = require("p-limit");
 const WebSocket = require("ws");
 const Cache = require("./Cache");
 
+const SLEEP_BEFORE_WS_RECONNECT = 500;
+const LOOK_FOR_UPDATES_INTERVAL = 5 * 60 * 1000;
+const REMOVE_OLD_VEHICLE_INTERVAL = 10 * 1000;
+const OLD_VEHICLE_THRESHOLD = 120 * 1000;
+const API_KEY_LENGTH = 32;
+
 class AucklandTransportData {
     constructor({ key, baseUrl, webSocketUrl, maxCacheSizeInBytes, compressCache, maxParallelRequests = 10 }, uWSApp) {
         if (!key) throw new Error("AucklandTransportData: Missing API key");
@@ -105,7 +111,7 @@ class AucklandTransportData {
     }
 
     async validateApiKey() {
-        if (!this._apiKey || this._apiKey.length !== 32) {
+        if (!this._apiKey || this._apiKey.length !== API_KEY_LENGTH) {
             return false;
         }
         try {
@@ -115,6 +121,18 @@ class AucklandTransportData {
         catch (err) {
             return false;
         }
+    }
+
+    removeOldVehicles() {
+        const now = (new Date()).getTime();
+        this._byShortName.forEach(processedRoute => {
+            processedRoute.vehicles.forEach((processedVehicle, vehicleId) => {
+                // remove vehicles more than 2 mins old
+                if (processedVehicle.lastUpdatedUnix * 1000 < now - OLD_VEHICLE_THRESHOLD) {
+                    processedRoute.vehicles.delete(vehicleId);
+                }
+            });
+        });
     }
 
     startWebSocket() {
@@ -172,7 +190,7 @@ class AucklandTransportData {
         this._ws.on("close", code => {
             // reconnect if buggy AT server returns "Unexpected server response: 503"
             if (code === 1006) {
-                setTimeout(() => this.startWebSocket(), 500);
+                setTimeout(() => this.startWebSocket(), SLEEP_BEFORE_WS_RECONNECT);
             }
             this._ws = null;
         });
@@ -226,7 +244,7 @@ class AucklandTransportData {
 
         // load vehicle positions
         const response = await this.query("public/realtime/vehiclelocations", "noCache");
-        const nowUnix = (new Date()).getTime() / 1000;
+        const now = (new Date()).getTime();
         for (const vehicle_ of response.entity) {
             const { vehicle, id } = vehicle_;
             if (!vehicle || !id) continue;
@@ -240,8 +258,8 @@ class AucklandTransportData {
             const [lat, lng] = [position.latitude, position.longitude];
             if (!lat || !lng) continue;
 
-            // more than 60 seconds old, ignore it
-            if (timestamp < nowUnix - 60) continue;
+            // ignore vehicles more than 2 minutes old
+            if (timestamp * 1000 < now - OLD_VEHICLE_THRESHOLD) continue;
 
             this._byRouteId.get(routeId).vehicles.set(id, {
                 vehicleId:       id,
@@ -269,11 +287,15 @@ class AucklandTransportData {
     }
 
     startAutoUpdates() {
-        this._autoUpdate = setInterval(() => this.lookForUpdates(), 5 * 60 * 1000);
+        this._autoUpdateInterval = setInterval(() => this.lookForUpdates(), LOOK_FOR_UPDATES_INTERVAL);
+        this._removeOldVehiclesInterval = setInterval(() => this.removeOldVehicles(), REMOVE_OLD_VEHICLE_INTERVAL);
+        this.startWebSocket();
     }
 
     stopAutoUpdates() {
-        clearInterval(this._autoUpdate);
+        clearInterval(this._autoUpdateInterval);
+        clearInterval(this._removeOldVehiclesInterval);
+        this.stopWebSocket();
     }
 }
 
