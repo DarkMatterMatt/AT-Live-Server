@@ -2,10 +2,9 @@ const fetch = require("node-fetch");
 const pLimit = require("p-limit");
 const WebSocket = require("ws");
 const Cache = require("./Cache");
-const C = require("./config");
 
 class AucklandTransportData {
-    constructor({ key, baseUrl, webSocketUrl, maxCacheSizeInBytes, compressCache }) {
+    constructor({ key, baseUrl, webSocketUrl, maxCacheSizeInBytes, compressCache, maxParallelRequests = 10 }) {
         if (!key) throw new Error("AucklandTransportData: Missing API key");
         if (!baseUrl) throw new Error("AucklandTransportData: Missing API URL");
         if (!webSocketUrl) throw new Error("AucklandTransportData: Missing WebSocket URL");
@@ -15,7 +14,7 @@ class AucklandTransportData {
         this._webSocketUrl = webSocketUrl;
         this._version = "";
         this._cache = new Cache("ATCache", maxCacheSizeInBytes, compressCache);
-        this._pLimit = pLimit(C.aucklandTransport.maxParallelRequests);
+        this._pLimit = pLimit(maxParallelRequests);
         this._ws = null;
 
         /* Processed data by short name
