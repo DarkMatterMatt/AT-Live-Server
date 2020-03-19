@@ -1,11 +1,12 @@
 const  { LocalStorage } = require("node-localstorage");
 const LZString = require("lz-string");
+const { isTruthy } = require("./TruthyUserInput");
 
 /** localStorage cache for JSON serialisable objects */
 class Cache {
     constructor(cacheName, maxSizeInBytes, compress) {
         this._localStorage = new LocalStorage(`./localStorage/${cacheName}`, maxSizeInBytes);
-        this.compress = compress;
+        this.compress = isTruthy(compress);
 
         const prevCompress = JSON.parse(this._localStorage.getItem("compress"));
         if (prevCompress !== null && prevCompress !== compress) {
