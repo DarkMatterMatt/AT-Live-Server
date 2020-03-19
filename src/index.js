@@ -10,12 +10,10 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
 (async () => {
     await aucklandTransportData.lookForUpdates("forceLoad");
     aucklandTransportData.startAutoUpdates();
-    aucklandTransportData.startWebSocket();
 
     process.on("SIGINT", () => {
         console.log("Caught interrupt signal");
         aucklandTransportData.stopAutoUpdates();
-        aucklandTransportData.stopWebSocket();
         process.exit();
     });
 
@@ -23,6 +21,13 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
         ...C.ws.v1.opts,
 
         message: (ws, message) => {
+            if (!message.byteLength) {
+                ws.send(JSON.stringify({
+                    status: "error",
+                    error:  "No data recieved. Expected data in a JSON format.",
+                }));
+                return;
+            }
             let json;
             try {
                 json = JSON.parse(Buffer.from(message));
@@ -30,7 +35,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
             catch (e) {
                 ws.send(JSON.stringify({
                     status: "error",
-                    error:  "Invalid JSON data recieved",
+                    error:  "Invalid JSON data recieved.",
                 }));
                 return;
             }
@@ -46,7 +51,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
             if (!validRoutes.includes(json.route)) {
                 ws.send(JSON.stringify({
                     status: "error",
-                    error:  `'route' field must be one of [${validRoutes.join(",")}]`,
+                    error:  `'route' field must be one of [${validRoutes.join(",")}].`,
                 }));
                 return;
             }
@@ -70,7 +75,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
                     ws.subscribe(`${json.shortName}`);
                     ws.send(JSON.stringify({
                         status:  "success",
-                        message: `Subscribed to '${json.shortName}'`,
+                        message: `Subscribed to '${json.shortName}'.`,
                     }));
                     return;
                 }
@@ -92,7 +97,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
                     ws.unsubscribe(`${json.shortName}`);
                     ws.send(JSON.stringify({
                         status:  "success",
-                        message: `Unsubscribed from '${json.shortName}'`,
+                        message: `Unsubscribed from '${json.shortName}'.`,
                     }));
                     return;
                 }
