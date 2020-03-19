@@ -4,11 +4,12 @@ const WebSocket = require("ws");
 const Cache = require("./Cache");
 
 class AucklandTransportData {
-    constructor({ key, baseUrl, webSocketUrl, maxCacheSizeInBytes, compressCache, maxParallelRequests = 10 }) {
+    constructor({ key, baseUrl, webSocketUrl, maxCacheSizeInBytes, compressCache, maxParallelRequests = 10 }, uWSApp) {
         if (!key) throw new Error("AucklandTransportData: Missing API key");
         if (!baseUrl) throw new Error("AucklandTransportData: Missing API URL");
         if (!webSocketUrl) throw new Error("AucklandTransportData: Missing WebSocket URL");
 
+        this._uWSApp = uWSApp;
         this._key = key;
         this._baseUrl = baseUrl;
         this._webSocketUrl = webSocketUrl;
@@ -55,6 +56,10 @@ class AucklandTransportData {
     }
 
     getRouteByShortName(shortName) {
+        return this._byShortName.get(shortName);
+    }
+
+    hasRouteByShortName(shortName) {
         return this._byShortName.get(shortName);
     }
 
@@ -143,7 +148,8 @@ class AucklandTransportData {
             const [lat, lng] = [position.latitude, position.longitude];
             if (!lat || !lng) return;
 
-            this._byRouteId.get(routeId).vehicles.set(id, {
+            const route = this._byRouteId.get(routeId);
+            const processedVehicle = {
                 vehicleId:       id,
                 lastUpdatedUnix: Number.parseInt(timestamp, 10),
                 directionId,
@@ -151,7 +157,9 @@ class AucklandTransportData {
                     lat,
                     lng,
                 },
-            });
+            };
+            route.vehicles.set(id, processedVehicle);
+            this._uWSApp.publish(route.shortName, JSON.stringify(processedVehicle));
         });
 
         this._ws.on("error", err => {
