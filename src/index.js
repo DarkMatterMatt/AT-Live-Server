@@ -5,10 +5,19 @@ const C = require("./config");
 const app = C.useSSL ? uWS.SSLApp(C.ssl) : uWS.App();
 
 /* Subscribe / publish by route short names */
-const aucklandTransportData = new AucklandTransportData(C.aucklandTransport.key, C.aucklandTransport.baseUrl, C.aucklandTransport.webSocketUrl);
+const aucklandTransportData = new AucklandTransportData(C.aucklandTransport);
 
 (async () => {
     await aucklandTransportData.lookForUpdates("forceLoad");
+    aucklandTransportData.startAutoUpdates();
+    aucklandTransportData.startWebSocket();
+
+    process.on("SIGINT", () => {
+        console.log("Caught interrupt signal");
+        aucklandTransportData.stopAutoUpdates();
+        aucklandTransportData.stopWebSocket();
+        process.exit();
+    });
 
     app.ws("/v1/", {
         ...C.ws.v1.opts,
@@ -47,7 +56,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport.key,
         res.end("Invalid endpoint");
     });
 
-    app.listen(9001, (listenSocket) => {
+    app.listen(9001, listenSocket => {
         if (listenSocket) {
             console.log("Listening to port 9001");
         }
