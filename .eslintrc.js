@@ -46,6 +46,9 @@ module.exports = {
         "no-unused-vars": ["warn", {
             "argsIgnorePattern": "^_+$",
         }],
+        "object-curly-newline": ["error", {
+            "consistent": true
+        }],
         "quotes": ["error", "double"],
     },
 };
