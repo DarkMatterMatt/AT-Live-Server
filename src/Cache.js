@@ -24,9 +24,7 @@ class Cache {
             this._localStorage.setItem(k, tmp);
         }
         catch (err) {
-            console.warn("LocalStorage may be full. Resetting cache");
-            this.clear();
-            this._localStorage.setItem(k, tmp);
+            console.warn(`Cache: error while setting '${k}'`, err);
         }
     }
 
