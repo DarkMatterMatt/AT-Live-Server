@@ -5,12 +5,16 @@ const Cache = require("./Cache");
 const C = require("./config");
 
 class AucklandTransportData {
-    constructor(key, baseUrl, wsUrl) {
+    constructor({ key, baseUrl, webSocketUrl, maxCacheSizeInBytes, compressCache }) {
+        if (!key) throw new Error("AucklandTransportData: Missing API key");
+        if (!baseUrl) throw new Error("AucklandTransportData: Missing API URL");
+        if (!webSocketUrl) throw new Error("AucklandTransportData: Missing WebSocket URL");
+
         this._key = key;
         this._baseUrl = baseUrl;
-        this._wsUrl = wsUrl;
+        this._webSocketUrl = webSocketUrl;
         this._version = "";
-        this._cache = new Cache("ATCache", C.aucklandTransport.maxCacheSizeInBytes, C.aucklandTransport.compressCache);
+        this._cache = new Cache("ATCache", maxCacheSizeInBytes, compressCache);
         this._pLimit = pLimit(C.aucklandTransport.maxParallelRequests);
         this._ws = null;
 
@@ -109,8 +113,8 @@ class AucklandTransportData {
         }
     }
 
-    async startWebSocket() {
-        this._ws = new WebSocket(this._wsUrl + this._key);
+    startWebSocket() {
+        this._ws = new WebSocket(this._webSocketUrl + this._key);
         this._ws.on("open", () => {
             this._ws.send(JSON.stringify({
                 // appears to be a stripped-down GraphQL API
@@ -125,24 +129,24 @@ class AucklandTransportData {
         });
 
         this._ws.on("message", (data_) => {
-            const data = JSON.parse(data_);
+            const data = JSON.parse(data_).vehicle;
             if (!data) return;
 
-            const { vehicle, id } = data;
-            if (!vehicle || !id) return;
+            const { position, timestamp, trip, vehicle } = data;
+            if (!position || !timestamp || !trip || !vehicle) return;
 
-            const { trip, position, timestamp } = vehicle;
-            if (!trip || !position || !timestamp) return;
+            const { id } = vehicle;
+            if (!id) return;
 
             const { routeId, directionId } = trip;
-            if (!routeId || !directionId) return;
+            if (!routeId || directionId === undefined) return;
 
             const [lat, lng] = [position.latitude, position.longitude];
             if (!lat || !lng) return;
 
             this._byRouteId.get(routeId).vehicles.set(id, {
                 vehicleId:       id,
-                lastUpdatedUnix: timestamp,
+                lastUpdatedUnix: Number.parseInt(timestamp, 10),
                 directionId,
                 position:        {
                     lat,
@@ -150,6 +154,25 @@ class AucklandTransportData {
                 },
             });
         });
+
+        this._ws.on("error", err => {
+            // buggy AT server returns "Unexpected server response: 503"
+            if (err.message !== "Unexpected server response: 503") {
+                throw err;
+            }
+        });
+
+        this._ws.on("close", code => {
+            // reconnect if buggy AT server returns "Unexpected server response: 503"
+            if (code === 1006) {
+                setTimeout(() => this.startWebSocket(), 500);
+            }
+            this._ws = null;
+        });
+    }
+
+    stopWebSocket() {
+        this._ws.close(1000);
     }
 
     async load() {
@@ -215,7 +238,7 @@ class AucklandTransportData {
 
             this._byRouteId.get(routeId).vehicles.set(id, {
                 vehicleId:       id,
-                lastUpdatedUnix: timestamp,
+                lastUpdatedUnix: Number.parseInt(timestamp, 10),
                 directionId,
                 position:        {
                     lat,
