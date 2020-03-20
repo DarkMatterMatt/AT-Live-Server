@@ -31,7 +31,7 @@ class AucklandTransportData {
                     longNames: Set(),
                     longName,
                     routeIds:  Set(routeId),
-                    shapeIds:  Set(shapeId),
+                    shapeIds:  [new Set(), new Set()],
                     polylines: [[{ lat, lng }], [{ lat, lng }]],
                     vehicles:  Map(vehicleId: {
                         vehicleId,
@@ -61,6 +61,10 @@ class AucklandTransportData {
 
     clearCache() {
         this._cache.clear();
+    }
+
+    getRoutesByShortName() {
+        return this._byShortName;
     }
 
     getRouteByShortName(shortName) {

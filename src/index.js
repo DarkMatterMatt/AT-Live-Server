@@ -1,7 +1,8 @@
 const uWS = require("uWebSockets.js");
 const AucklandTransportData = require("./AucklandTransportData");
 const C = require("./config");
-const routes = require("./routes");
+const webSocketRoutes = require("./webSocketRoutes");
+const getRoutes = require("./getRoutes");
 
 const app = C.useSSL ? uWS.SSLApp(C.ssl) : uWS.App();
 
@@ -50,7 +51,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
                 return;
             }
 
-            const route = routes.get(routeName) || routes.get("default");
+            const route = webSocketRoutes.get(routeName) || webSocketRoutes.get("default");
             const invalidParams = route.invalidParams(json);
             if (invalidParams) {
                 ws.send(route.jsonStringify("error", {
@@ -62,36 +63,32 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
         },
     });
 
-    app.get("/v1/shortname/:shortName", (res, req) => {
-        const shortName = req.getParameter(0).toUpperCase();
+    app.get("/v1/:route", (res, req) => {
         res.writeHeader("Content-Type", "application/json");
+        res.writeHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.writeHeader("Pragma", "no-cache");
+        res.writeHeader("Expires", "0");
 
-        const route = aucklandTransportData.getRouteByShortName(shortName);
-
-        if (!route) {
-            res.end(JSON.stringify({
-                route:  "shortname",
-                status: "error",
-                error:  "Specified route does not exist.",
+        const routeName = req.getParameter(0);
+        const params = new URLSearchParams(req.getQuery());
+        const route = getRoutes.get(routeName) || getRoutes.get("default");
+        const invalidParams = route.invalidParams(params);
+        if (invalidParams) {
+            res.send(route.jsonStringify("error", {
+                message: invalidParams,
             }));
             return;
         }
-
-        const { polylines, longName } = route;
-        const vehicles = [...route.vehicles.values()];
-
-        res.end(JSON.stringify({
-            route:  "shortname",
-            status: "success",
-            shortName,
-            longName,
-            polylines,
-            vehicles,
-        }));
+        route.execute(res, params, aucklandTransportData);
     });
 
     app.any("/*", res => {
-        res.end("Invalid endpoint");
+        res.writeStatus("404 Not Found");
+        res.writeHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({
+            status:  "error",
+            message: "404 Not Found",
+        }));
     });
 
     app.listen(9001, listenSocket => {
