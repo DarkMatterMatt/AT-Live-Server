@@ -9,11 +9,11 @@ class Cache {
         this.compress = isTruthy(compress);
 
         const prevCompress = JSON.parse(this._localStorage.getItem("compress"));
-        if (prevCompress !== null && prevCompress !== compress) {
+        if (prevCompress !== null && prevCompress !== this.compress) {
             console.warn("LocalStorage compression method changed. Resetting cache");
             this.clear();
         }
-        this._localStorage.setItem("__!compress!__", JSON.stringify(compress));
+        this._localStorage.setItem("__!compress!__", JSON.stringify(this.compress));
     }
 
     store(k, v) {
