@@ -1,5 +1,4 @@
 /* eslint-disable func-names */
-const fs = require("fs");
 const Route = require("./Route");
 
 const routes = new Map();
@@ -20,7 +19,7 @@ routes.set("routes", new Route("routes")
             fetch = fetch.split(",");
         }
         else {
-            fetch = ["shortName", "longName", "longNames", "routeIds", "shapeIds", "vehicles", "polylines"];
+            fetch = ["shortName", "longName", "longNames", "routeIds", "shapeIds", "vehicles"];
             // polylines are huge, don't send by default (unless specific routes are requested)
             if (shortNames) {
                 fetch.push("polylines");
@@ -73,7 +72,7 @@ routes.set("routes", new Route("routes")
 
         return res.end(this.jsonStringify("success", {
             message: "See routes attached",
-            routes:  "data",
+            routes:  data,
         }));
     }));
 
