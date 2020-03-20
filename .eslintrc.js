@@ -16,18 +16,18 @@ module.exports = {
     },
     rules: {
         "arrow-parens": "off",
-        "brace-style": ["error", "stroustrup"],
-        "comma-dangle": ["error", {
+        "brace-style": ["warn", "stroustrup"],
+        "comma-dangle": ["warn", {
             "arrays": "always-multiline",
             "objects": "always-multiline",
             "imports": "always-multiline",
             "exports": "always-multiline",
             "functions": "never",
         }],
-        "indent": ["error", 4, {
+        "indent": ["warn", 4, {
             "SwitchCase": 1
         }],
-        "key-spacing": ["error", {
+        "key-spacing": ["warn", {
             "mode": "minimum",
             "align": "value",
         }],
@@ -46,9 +46,9 @@ module.exports = {
         "no-unused-vars": ["warn", {
             "argsIgnorePattern": "^_+$",
         }],
-        "object-curly-newline": ["error", {
+        "object-curly-newline": ["warn", {
             "consistent": true
         }],
-        "quotes": ["error", "double"],
+        "quotes": ["warn", "double"],
     },
 };
