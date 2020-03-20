@@ -9,6 +9,9 @@ const REMOVE_OLD_VEHICLE_INTERVAL = 10 * 1000;
 const OLD_VEHICLE_THRESHOLD = 120 * 1000;
 const API_KEY_LENGTH = 32;
 
+// https://developers.google.com/transit/gtfs/reference#routestxt
+const TRANSIT_TYPES = ["tram", "subway", "rail", "bus", "ferry"];
+
 class AucklandTransportData {
     constructor({ key, baseUrl, webSocketUrl, maxCacheSizeInBytes, compressCache, maxParallelRequests = 10 }, uWSApp) {
         if (!key) throw new Error("AucklandTransportData: Missing API key");
@@ -39,6 +42,8 @@ class AucklandTransportData {
                         directionId,
                         position: { lat, lng },
                     }),
+                    type: one of ["rail", "bus", "ferry"]
+                    agencyId
                 }
             }
         */
@@ -225,6 +230,8 @@ class AucklandTransportData {
                     longName:  "",
                     polylines: [[], []],
                     vehicles:  new Map(),
+                    type:      TRANSIT_TYPES[route.route_type],
+                    agencyId:  route.agency_id,
                 });
             }
             const processedRoute = this._byShortName.get(shortName);

@@ -19,7 +19,7 @@ routes.set("routes", new Route("routes")
             fetch = fetch.split(",");
         }
         else {
-            fetch = ["shortName", "longName", "longNames", "routeIds", "shapeIds", "vehicles"];
+            fetch = ["shortName", "longName", "longNames", "routeIds", "shapeIds", "vehicles", "type", "agencyId"];
             // polylines are huge, don't send by default (unless specific routes are requested)
             if (shortNames) {
                 fetch.push("polylines");
@@ -42,7 +42,9 @@ routes.set("routes", new Route("routes")
                     // copy primitives
                     case "shortName":
                     case "longName":
-                    case "polylines": {
+                    case "polylines":
+                    case "type":
+                    case "agencyId": {
                         data[shortName][f] = processedRoute[f];
                         break;
                     }
