@@ -58,52 +58,65 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
 
             switch (json.route) {
                 case "subscribe": {
-                    if (!json.shortName) {
+                    const { shortName } = json;
+                    if (!shortName) {
                         ws.send(JSON.stringify({
+                            route:  "subscribe",
                             status: "error",
                             error:  "Missing 'shortName' field.",
                         }));
                         return;
                     }
-                    if (!aucklandTransportData.hasRouteByShortName(json.shortName)) {
+                    if (!aucklandTransportData.hasRouteByShortName(shortName)) {
                         ws.send(JSON.stringify({
+                            route:  "subscribe",
                             status: "error",
-                            error:  `Unknown route with shortName '${json.shortName}'.`,
+                            error:  `Unknown route with shortName '${shortName}'.`,
+                            shortName,
                         }));
                         return;
                     }
-                    ws.subscribe(`${json.shortName}`);
+                    ws.subscribe(`${shortName}`);
                     ws.send(JSON.stringify({
+                        route:   "subscribe",
                         status:  "success",
-                        message: `Subscribed to '${json.shortName}'.`,
+                        message: `Subscribed to '${shortName}'.`,
+                        shortName,
                     }));
                     return;
                 }
                 case "unsubscribe": {
-                    if (!json.shortName) {
+                    const { shortName } = json;
+                    if (!shortName) {
                         ws.send(JSON.stringify({
+                            route:  "unsubscribe",
                             status: "error",
                             error:  "Missing 'shortName' field.",
                         }));
                         return;
                     }
-                    if (!aucklandTransportData.hasRouteByShortName(json.shortName)) {
+                    if (!aucklandTransportData.hasRouteByShortName(shortName)) {
                         ws.send(JSON.stringify({
+                            route:  "unsubscribe",
                             status: "error",
-                            error:  `Unknown route with shortName '${json.shortName}'.`,
+                            error:  `Unknown route with shortName '${shortName}'.`,
+                            shortName,
                         }));
                         return;
                     }
-                    ws.unsubscribe(`${json.shortName}`);
+                    ws.unsubscribe(`${shortName}`);
                     ws.send(JSON.stringify({
-                        status:  "success",
-                        message: `Unsubscribed from '${json.shortName}'.`,
+                        route:     "unsubscribe",
+                        status:    "success",
+                        message:   `Unsubscribed from '${shortName}'.`,
+                        shortName,
                     }));
                     return;
                 }
                 default: // this should never happen
                 case "ping": {
                     ws.send(JSON.stringify({
+                        route:   "ping",
                         status:  "success",
                         message: "pong",
                     }));

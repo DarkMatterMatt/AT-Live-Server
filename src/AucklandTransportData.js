@@ -177,7 +177,11 @@ class AucklandTransportData {
                 },
             };
             route.vehicles.set(id, processedVehicle);
-            this._uWSApp.publish(route.shortName, JSON.stringify(processedVehicle));
+            this._uWSApp.publish(route.shortName, JSON.stringify({
+                ...processedVehicle,
+                route:     "live/vehicle", // websocket JSON route, not the vehicle's transit route
+                shortName: route.shortName,
+            }));
         });
 
         this._ws.on("error", err => {
