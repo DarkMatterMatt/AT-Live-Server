@@ -1,6 +1,7 @@
 const uWS = require("uWebSockets.js");
 const AucklandTransportData = require("./AucklandTransportData");
 const C = require("./config");
+const routes = require("./routes");
 
 const app = C.useSSL ? uWS.SSLApp(C.ssl) : uWS.App();
 
@@ -23,8 +24,8 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
         message: (ws, message) => {
             if (!message.byteLength) {
                 ws.send(JSON.stringify({
-                    status: "error",
-                    error:  "No data recieved. Expected data in a JSON format.",
+                    status:  "error",
+                    message: "No data recieved. Expected data in a JSON format.",
                 }));
                 return;
             }
@@ -34,94 +35,30 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
             }
             catch (e) {
                 ws.send(JSON.stringify({
-                    status: "error",
-                    error:  "Invalid JSON data recieved.",
+                    status:  "error",
+                    message: "Invalid JSON data recieved.",
                 }));
                 return;
             }
 
-            const validRoutes = ["subscribe", "unsubscribe", "ping"];
-            if (!json.route) {
+            const routeName = json.route;
+            if (!routeName) {
                 ws.send(JSON.stringify({
-                    status: "error",
-                    error:  "Missing 'route' field.",
-                }));
-                return;
-            }
-            if (!validRoutes.includes(json.route)) {
-                ws.send(JSON.stringify({
-                    status: "error",
-                    error:  `'route' field must be one of [${validRoutes.join(",")}].`,
+                    status:  "error",
+                    message: "Missing 'route' field.",
                 }));
                 return;
             }
 
-            switch (json.route) {
-                case "subscribe": {
-                    const { shortName } = json;
-                    if (!shortName) {
-                        ws.send(JSON.stringify({
-                            route:  "subscribe",
-                            status: "error",
-                            error:  "Missing 'shortName' field.",
-                        }));
-                        return;
-                    }
-                    if (!aucklandTransportData.hasRouteByShortName(shortName)) {
-                        ws.send(JSON.stringify({
-                            route:  "subscribe",
-                            status: "error",
-                            error:  `Unknown route with shortName '${shortName}'.`,
-                            shortName,
-                        }));
-                        return;
-                    }
-                    ws.subscribe(`${shortName}`);
-                    ws.send(JSON.stringify({
-                        route:   "subscribe",
-                        status:  "success",
-                        message: `Subscribed to '${shortName}'.`,
-                        shortName,
-                    }));
-                    return;
-                }
-                case "unsubscribe": {
-                    const { shortName } = json;
-                    if (!shortName) {
-                        ws.send(JSON.stringify({
-                            route:  "unsubscribe",
-                            status: "error",
-                            error:  "Missing 'shortName' field.",
-                        }));
-                        return;
-                    }
-                    if (!aucklandTransportData.hasRouteByShortName(shortName)) {
-                        ws.send(JSON.stringify({
-                            route:  "unsubscribe",
-                            status: "error",
-                            error:  `Unknown route with shortName '${shortName}'.`,
-                            shortName,
-                        }));
-                        return;
-                    }
-                    ws.unsubscribe(`${shortName}`);
-                    ws.send(JSON.stringify({
-                        route:     "unsubscribe",
-                        status:    "success",
-                        message:   `Unsubscribed from '${shortName}'.`,
-                        shortName,
-                    }));
-                    return;
-                }
-                default: // this should never happen
-                case "ping": {
-                    ws.send(JSON.stringify({
-                        route:   "ping",
-                        status:  "success",
-                        message: "pong",
-                    }));
-                }
+            const route = routes.get(routeName) || routes.get("default");
+            const invalidParams = route.invalidParams(json);
+            if (invalidParams) {
+                ws.send(route.jsonStringify("error", {
+                    message: invalidParams,
+                }));
+                return;
             }
+            route.execute(ws, json, aucklandTransportData);
         },
     });
 
