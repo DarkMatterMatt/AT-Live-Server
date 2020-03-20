@@ -28,10 +28,12 @@ class AucklandTransportData {
             {
                 shortName: {
                     shortName,
-                    routeIds: Set(routeId),
-                    shapeIds: Set(shapeId),
-                    polylines:   [[{ lat, lng }], [{ lat, lng }]],
-                    vehicles: Map(vehicleId: {
+                    longNames: Set(),
+                    longName,
+                    routeIds:  Set(routeId),
+                    shapeIds:  Set(shapeId),
+                    polylines: [[{ lat, lng }], [{ lat, lng }]],
+                    vehicles:  Map(vehicleId: {
                         vehicleId,
                         lastUpdatedUnix,
                         directionId,
@@ -215,12 +217,16 @@ class AucklandTransportData {
                     shortName,
                     routeIds:  new Set(),
                     shapeIds:  [new Set(), new Set()],
+                    longNames: new Set(),
+                    longName:  "",
                     polylines: [[], []],
                     vehicles:  new Map(),
                 });
             }
-            this._byShortName.get(shortName).routeIds.add(route.route_id);
-            this._byRouteId.set(route.route_id, this._byShortName.get(shortName));
+            const processedRoute = this._byShortName.get(shortName);
+            this._byRouteId.set(route.route_id, processedRoute);
+            processedRoute.routeIds.add(route.route_id);
+            processedRoute.longNames.add(route.route_long_name);
         }
 
         // trips are required for fetching shapes
@@ -230,12 +236,21 @@ class AucklandTransportData {
             this._byRouteId.get(trip.route_id).shapeIds[trip.direction_id].add(trip.shape_id);
         }
 
-        // shapeIds => polylines
+        // select longName, get polylines from shapeIds
         await Promise.allSettled(Array.from(this._byShortName, async ([_, processedRoute]) => {
+            /* eslint-disable no-param-reassign, no-await-in-loop */
+            const longNames = [...processedRoute.longNames];
+            // sort by length, then alphabetically
+            longNames.sort((a, b) => (b.length - a.length || (a > b ? 1 : -1)));
+            // make To and Via lowercase, remove full stops
+            processedRoute.longName = longNames[0]
+                .replace(/To/g, "to")
+                .replace(/Via/g, "via")
+                .replace(/\./g, "");
+
             for (let i = 0; i < 2; i++) {
-                /* eslint-disable no-param-reassign, no-await-in-loop */
                 if (processedRoute.shapeIds[i].size === 0) {
-                    processedRoute.polylines[0] = [];
+                    processedRoute.polylines[i] = [];
                     continue;
                 }
                 // seems like the lowest number has the full route, while higher

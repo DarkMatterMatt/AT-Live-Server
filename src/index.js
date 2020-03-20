@@ -133,18 +133,21 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
 
         if (!route) {
             res.end(JSON.stringify({
+                route:  "shortname",
                 status: "error",
                 error:  "Specified route does not exist.",
             }));
             return;
         }
 
-        const { polylines } = route;
+        const { polylines, longName } = route;
         const vehicles = [...route.vehicles.values()];
 
         res.end(JSON.stringify({
+            route:  "shortname",
             status: "success",
             shortName,
+            longName,
             polylines,
             vehicles,
         }));
