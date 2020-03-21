@@ -65,10 +65,6 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
 
     app.get("/v1/:route", (res, req) => {
         res.writeHeader("Content-Type", "application/json");
-        res.writeHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-        res.writeHeader("Pragma", "no-cache");
-        res.writeHeader("Expires", "0");
-
         const routeName = req.getParameter(0);
         const params = new URLSearchParams(req.getQuery());
         const route = getRoutes.get(routeName) || getRoutes.get("default");

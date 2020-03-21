@@ -1,6 +1,19 @@
 /* eslint-disable func-names */
 const Route = require("./Route");
 
+function cacheFor(res, secs) {
+    if (secs > 0) {
+        const d = new Date();
+        d.setSeconds(d.getSeconds() + secs);
+        res.writeHeader("Cache-Control", `max-age=${secs}`);
+        res.writeHeader("Expires", d.toUTCString());
+        return;
+    }
+    res.writeHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.writeHeader("Pragma", "no-cache");
+    res.writeHeader("Expires", "0");
+}
+
 const routes = new Map();
 
 routes.set("default", new Route("default")
@@ -25,6 +38,9 @@ routes.set("routes", new Route("routes")
                 fetch.push("polylines");
             }
         }
+
+        // cache for 1h except vehicles, which have live data so aren't cached
+        cacheFor(res, fetch.includes("vehicles") ? 0 : 3600);
 
         const processedRoutes = aucklandTransportData.getRoutesByShortName();
         const data = {};
