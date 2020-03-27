@@ -236,8 +236,9 @@ class AucklandTransportData {
             }
             if (err.message === "Unexpected server response: 502") {
                 setTimeout(() => this.startWebSocket(), SLEEP_BEFORE_WS_RECONNECT_502);
+                return;
             }
-            // throw err;
+            throw err;
         });
 
         this._ws.on("close", code => {
