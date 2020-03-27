@@ -3,11 +3,14 @@ const pLimit = require("p-limit");
 const WebSocket = require("ws");
 const Cache = require("./Cache");
 
-const SLEEP_BEFORE_WS_RECONNECT = 500;
+const WS_CODE_CLOSE_NO_RECONNECT = 4000;
+const SLEEP_BEFORE_WS_RECONNECT_503 = 500;
+const SLEEP_BEFORE_WS_RECONNECT_502 = 60 * 1000;
 const LOOK_FOR_UPDATES_INTERVAL = 5 * 60 * 1000;
 const REMOVE_OLD_VEHICLE_INTERVAL = 10 * 1000;
 const OLD_VEHICLE_THRESHOLD = 120 * 1000;
 const API_KEY_LENGTH = 32;
+const LIVE_POLLING_INTERVAL = 25 * 1000;
 
 // https://developers.google.com/transit/gtfs/reference#routestxt
 const TRANSIT_TYPES = ["tram", "subway", "rail", "bus", "ferry"];
@@ -26,6 +29,9 @@ class AucklandTransportData {
         this._cache = new Cache("ATCache", maxCacheSizeInBytes, compressCache);
         this._pLimit = pLimit(maxParallelRequests);
         this._ws = null;
+
+        // websocket is buggy, poll manually every LIVE_POLLING_INTERVAL if it isn't working
+        this._livePollingInterval = null;
 
         /* Processed data by short name
             {
@@ -146,7 +152,56 @@ class AucklandTransportData {
         });
     }
 
+    loadVehiclePosition({ position, timestamp, trip, vehicle }) {
+        if (!position || !timestamp || !trip || !vehicle) return;
+
+        const { id } = vehicle;
+        if (!id) return;
+
+        const routeId = trip.routeId || trip.route_id;
+        const directionId = trip.directionId || trip.direction_id;
+        if (!routeId || directionId === undefined) return;
+
+        const [lat, lng] = [position.latitude, position.longitude];
+        if (!lat || !lng) return;
+
+        // ignore vehicles more than 2 minutes old
+        const lastUpdatedUnix = Number.parseInt(timestamp, 10);
+        if (lastUpdatedUnix * 1000 < (new Date()).getTime() - OLD_VEHICLE_THRESHOLD) return;
+
+        const route = this._byRouteId.get(routeId);
+        const processedVehicle = {
+            position:  { lat, lng },
+            vehicleId: id,
+            lastUpdatedUnix,
+            directionId,
+        };
+
+        const old = route.vehicles.get(id);
+
+        if (old === undefined || old.lastUpdatedUnix !== lastUpdatedUnix) {
+            route.vehicles.set(id, processedVehicle);
+            this._uWSApp.publish(route.shortName, JSON.stringify({
+                ...processedVehicle,
+                status:    "success",
+                route:     "live/vehicle", // websocket JSON route, not the vehicle's transit route
+                shortName: route.shortName,
+            }));
+        }
+    }
+
+    async loadAllVehiclePositions() {
+        const response = await this.query("public/realtime/vehiclelocations", "noCache");
+        for (const { vehicle } of response.entity) {
+            this.loadVehiclePosition(vehicle);
+        }
+    }
+
     startWebSocket() {
+        if (this._livePollingInterval === null) {
+            this._livePollingInterval = setInterval(() => this.loadAllVehiclePositions(), LIVE_POLLING_INTERVAL);
+        }
+
         this._ws = new WebSocket(this._webSocketUrl + this._key);
         this._ws.on("open", () => {
             this._ws.send(JSON.stringify({
@@ -161,58 +216,51 @@ class AucklandTransportData {
             }));
         });
 
-        this._ws.on("message", (data_) => {
+        this._ws.on("message", data_ => {
+            // websocket is working, stop polling for data
+            clearInterval(this._livePollingInterval);
+            this._livePollingInterval = null;
+
             const data = JSON.parse(data_).vehicle;
             if (!data) return;
 
-            const { position, timestamp, trip, vehicle } = data;
-            if (!position || !timestamp || !trip || !vehicle) return;
-
-            const { id } = vehicle;
-            if (!id) return;
-
-            const { routeId, directionId } = trip;
-            if (!routeId || directionId === undefined) return;
-
-            const [lat, lng] = [position.latitude, position.longitude];
-            if (!lat || !lng) return;
-
-            const route = this._byRouteId.get(routeId);
-            const processedVehicle = {
-                vehicleId:       id,
-                lastUpdatedUnix: Number.parseInt(timestamp, 10),
-                directionId,
-                position:        {
-                    lat,
-                    lng,
-                },
-            };
-            route.vehicles.set(id, processedVehicle);
-            this._uWSApp.publish(route.shortName, JSON.stringify({
-                ...processedVehicle,
-                route:     "live/vehicle", // websocket JSON route, not the vehicle's transit route
-                shortName: route.shortName,
-            }));
+            this.loadVehiclePosition(data);
         });
 
         this._ws.on("error", err => {
             // buggy AT server returns "Unexpected server response: 503"
-            if (err.message !== "Unexpected server response: 503") {
-                throw err;
+            // also has been known to break completely and 502
+            if (err.message === "Unexpected server response: 503") {
+                setTimeout(() => this.startWebSocket(), SLEEP_BEFORE_WS_RECONNECT_503);
+                return;
             }
+            if (err.message === "Unexpected server response: 502") {
+                setTimeout(() => this.startWebSocket(), SLEEP_BEFORE_WS_RECONNECT_502);
+            }
+            // throw err;
         });
 
         this._ws.on("close", code => {
-            // reconnect if buggy AT server returns "Unexpected server response: 503"
-            if (code === 1006) {
-                setTimeout(() => this.startWebSocket(), SLEEP_BEFORE_WS_RECONNECT);
-            }
             this._ws = null;
+
+            if (code === WS_CODE_CLOSE_NO_RECONNECT) {
+                // planned closure, requested internally
+                return;
+            }
+
+            if (code === 1006) {
+                // abnormal closure, handled by "error" event
+                return;
+            }
+
+            throw new Error("Unknown close code", code);
         });
     }
 
     stopWebSocket() {
-        this._ws.close(1000);
+        if (this._ws !== null) {
+            this._ws.close(WS_CODE_CLOSE_NO_RECONNECT);
+        }
     }
 
     async load() {
@@ -272,35 +320,7 @@ class AucklandTransportData {
             }
         }));
 
-        // load vehicle positions
-        const response = await this.query("public/realtime/vehiclelocations", "noCache");
-        const now = (new Date()).getTime();
-        for (const vehicle_ of response.entity) {
-            const { vehicle, id } = vehicle_;
-            if (!vehicle || !id) continue;
-
-            const { trip, position, timestamp } = vehicle;
-            if (!trip || !position || !timestamp) continue;
-
-            const [routeId, directionId] = [trip.route_id, trip.direction_id];
-            if (!routeId || !directionId) continue;
-
-            const [lat, lng] = [position.latitude, position.longitude];
-            if (!lat || !lng) continue;
-
-            // ignore vehicles more than 2 minutes old
-            if (timestamp * 1000 < now - OLD_VEHICLE_THRESHOLD) continue;
-
-            this._byRouteId.get(routeId).vehicles.set(id, {
-                vehicleId:       id,
-                lastUpdatedUnix: Number.parseInt(timestamp, 10),
-                directionId,
-                position:        {
-                    lat,
-                    lng,
-                },
-            });
-        }
+        await this.loadAllVehiclePositions();
     }
 
     async lookForUpdates(forceLoad) {
