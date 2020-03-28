@@ -16,6 +16,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
     process.on("SIGINT", () => {
         console.log("Caught interrupt signal");
         aucklandTransportData.stopAutoUpdates();
+        aucklandTransportData.stopWebSocket();
         process.exit();
     });
 
