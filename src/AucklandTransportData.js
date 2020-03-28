@@ -313,10 +313,10 @@ class AucklandTransportData {
                     processedRoute.polylines[i] = [];
                     continue;
                 }
-                // seems like the lowest number has the full route, while higher
-                //   numbers of the same version have additional peak-time routes?
-                const shapeId = [...processedRoute.shapeIds[i]].sort()[0];
-                const shape = await this.query(`gtfs/shapes/shapeId/${shapeId}`);
+                // fetch all shapes and generate polylines for the longest
+                const shapes = await Promise.all([...processedRoute.shapeIds[i]]
+                    .map(id => this.query(`gtfs/shapes/shapeId/${id}`)));
+                const shape = shapes.sort((a, b) => b.length - a.length)[0];
                 processedRoute.polylines[i] = shape.map(s => ({ lat: s.shape_pt_lat, lng: s.shape_pt_lon }));
             }
         }));
