@@ -53,12 +53,9 @@ class Route {
         this._executor(...args);
     }
 
-    jsonStringify(status, data = {}) {
-        return JSON.stringify({
-            ...data,
-            status,
-            route: this._name,
-        });
+    // eslint-disable-next-line class-methods-use-this
+    finish() {
+        throw new Error("Stub");
     }
 }
 

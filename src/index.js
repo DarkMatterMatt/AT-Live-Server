@@ -72,17 +72,16 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
             const route = webSocketRoutes.get(routeName) || webSocketRoutes.get("default");
             const invalidParams = route.invalidParams(json);
             if (invalidParams) {
-                ws.send(route.jsonStringify("error", {
+                route.finish("error", {
                     message: invalidParams,
-                }));
+                });
                 return;
             }
-            route.execute(ws, json, aucklandTransportData);
+            route.execute({ ws, json, aucklandTransportData });
         },
     });
 
     app.get("/v1/:route", (res, req) => {
-        res.writeHeader("Content-Type", "application/json");
         const routeName = req.getParameter(0);
         const params = new URLSearchParams(req.getQuery());
         const route = getRoutes.get(routeName) || getRoutes.get("default");
@@ -93,7 +92,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
             }));
             return;
         }
-        route.execute(res, params, aucklandTransportData);
+        route.execute({ res, req, params, aucklandTransportData });
     });
 
     app.any("/*", res => {

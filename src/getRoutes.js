@@ -1,31 +1,18 @@
 /* eslint-disable func-names */
-const Route = require("./Route");
-
-function cacheFor(res, secs) {
-    if (secs > 0) {
-        const d = new Date();
-        d.setSeconds(d.getSeconds() + secs);
-        res.writeHeader("Cache-Control", `max-age=${secs}`);
-        res.writeHeader("Expires", d.toUTCString());
-        return;
-    }
-    res.writeHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.writeHeader("Pragma", "no-cache");
-    res.writeHeader("Expires", "0");
-}
+const GetRoute = require("./GetRoute");
 
 const routes = new Map();
 
-routes.set("default", new Route("default")
+routes.set("default", new GetRoute("default")
     // executor must not be an arrow function in order to get the correct `this`
-    .setExecutor(function (res) {
-        return res.end(this.jsonStringify("error", {
+    .setExecutor(function () {
+        return this.finish("error", {
             message: `Invalid route. Must be one of ${[...routes.keys()].join(", ")}.`,
-        }));
+        });
     }));
 
-routes.set("routes", new Route("routes")
-    .setExecutor(function (res, params, aucklandTransportData) {
+routes.set("routes", new GetRoute("routes")
+    .setExecutor(function ({ params, aucklandTransportData }) {
         const shortNames = params.get("shortNames") && params.get("shortNames").split(",");
         let fetch = params.get("fetch");
         if (fetch) {
@@ -39,8 +26,10 @@ routes.set("routes", new Route("routes")
             }
         }
 
-        // cache for 1h except vehicles, which have live data so aren't cached
-        cacheFor(res, fetch.includes("vehicles") ? 0 : 3600);
+        // don't cache responses containing vehicles
+        if (fetch.includes("vehicles")) {
+            this.setCacheMaxAge(0);
+        }
 
         const processedRoutes = aucklandTransportData.getRoutesByShortName();
         const data = {};
@@ -89,10 +78,10 @@ routes.set("routes", new Route("routes")
             }
         }
 
-        return res.end(this.jsonStringify("success", {
+        return this.finish("success", {
             message: "See routes attached",
             routes:  data,
-        }));
+        });
     }));
 
 module.exports = routes;

@@ -1,55 +1,55 @@
 /* eslint-disable func-names */
-const Route = require("./Route");
+const WebSocketRoute = require("./WebSocketRoute");
 
 const routes = new Map();
 
-routes.set("default", new Route("default")
+routes.set("default", new WebSocketRoute("default")
     // executor must not be an arrow function in order to get the correct `this`
-    .setExecutor(function (ws) {
-        return ws.send(this.jsonStringify("error", {
+    .setExecutor(function () {
+        return this.finish("error", {
             message: `Invalid route. Must be one of ${[...routes.keys()].join(", ")}.`,
-        }));
+        });
     }));
 
-routes.set("ping", new Route("ping")
-    .setExecutor(function (ws) {
-        return ws.send(this.jsonStringify("success", {
+routes.set("ping", new WebSocketRoute("ping")
+    .setExecutor(function () {
+        return this.finish("success", {
             message: "pong",
-        }));
+        });
     }));
 
-routes.set("subscribe", new Route("subscribe")
+routes.set("subscribe", new WebSocketRoute("subscribe")
     .setRequiredParam("shortName")
-    .setExecutor(function (ws, json, aucklandTransportData) {
+    .setExecutor(function ({ ws, json, aucklandTransportData }) {
         const { shortName } = json;
         if (!aucklandTransportData.hasRouteByShortName(shortName)) {
-            return ws.send(this.jsonStringify("error", {
+            return this.finish("error", {
                 message: `Unknown route with short name '${shortName}'.`,
-            }));
+            });
         }
 
         ws.subscribe(`${shortName}`);
-        return ws.send(this.jsonStringify("success", {
+        return this.finish("success", {
             message: `Subscribed to '${shortName}'.`,
             shortName,
-        }));
+        });
     }));
 
-routes.set("unsubscribe", new Route("unsubscribe")
+routes.set("unsubscribe", new WebSocketRoute("unsubscribe")
     .setRequiredParam("shortName")
-    .setExecutor(function (ws, json, aucklandTransportData) {
+    .setExecutor(function ({ ws, json, aucklandTransportData }) {
         const { shortName } = json;
         if (!aucklandTransportData.hasRouteByShortName(shortName)) {
-            return ws.send(this.jsonStringify("error", {
+            return this.finish("error", {
                 message: `Unknown route with short name '${shortName}'.`,
-            }));
+            });
         }
 
         ws.unsubscribe(`${shortName}`);
-        return ws.send(this.jsonStringify("success", {
+        return this.finish("success", {
             message: `Unsubscribed from '${shortName}'.`,
             shortName,
-        }));
+        });
     }));
 
 module.exports = routes;
