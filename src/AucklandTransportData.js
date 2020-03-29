@@ -3,7 +3,7 @@ const pLimit = require("p-limit");
 const WebSocket = require("ws");
 const Cache = require("./Cache");
 
-const WS_CODE_CLOSE_NO_RECONNECT = 4000;
+const WS_CODE_CLOSE_NO_RECONNECT = 1000;
 const SLEEP_BEFORE_WS_RECONNECT_503 = 500;
 const SLEEP_BEFORE_WS_RECONNECT_502 = 60 * 1000;
 const LOOK_FOR_UPDATES_INTERVAL = 5 * 60 * 1000;
