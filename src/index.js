@@ -4,12 +4,17 @@ const C = require("./config");
 const webSocketRoutes = require("./webSocketRoutes");
 const getRoutes = require("./getRoutes");
 
+const WS_CODE_CLOSE_GOING_AWAY = 1001;
+
 const app = C.useSSL ? uWS.SSLApp(C.ssl) : uWS.App();
 
 /* Subscribe / publish by route short names */
 const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app);
 
 (async () => {
+    const activeWebSockets = new Set();
+    let listenSocket;
+
     await aucklandTransportData.lookForUpdates("forceLoad");
     aucklandTransportData.startAutoUpdates();
 
@@ -17,11 +22,23 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
         console.log("Caught interrupt signal");
         aucklandTransportData.stopAutoUpdates();
         aucklandTransportData.stopWebSocket();
+        for (const ws of activeWebSockets.values()) {
+            ws.end(WS_CODE_CLOSE_GOING_AWAY, "Server is shutting down");
+        }
+        uWS.us_listen_socket_close(listenSocket);
         process.exit();
     });
 
     app.ws("/v1/websocket", {
         ...C.ws.v1.opts,
+
+        open: ws => {
+            activeWebSockets.add(ws);
+        },
+
+        close: ws => {
+            activeWebSockets.delete(ws);
+        },
 
         message: (ws, message) => {
             if (!message.byteLength) {
@@ -88,8 +105,9 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
         }));
     });
 
-    app.listen(9001, listenSocket => {
-        if (listenSocket) {
+    app.listen(9001, token => {
+        if (token) {
+            listenSocket = token;
             console.log("Listening to port 9001");
         }
     });
