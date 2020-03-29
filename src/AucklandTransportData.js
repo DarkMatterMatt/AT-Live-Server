@@ -1,5 +1,6 @@
 const fetch = require("node-fetch");
 const pLimit = require("p-limit");
+const spacetime = require("spacetime");
 const WebSocket = require("ws");
 const Cache = require("./Cache");
 
@@ -59,15 +60,9 @@ class AucklandTransportData {
         this._byRouteId = new Map();
     }
 
-    /** Note: the server must be run in New Zealand */
+    // Note: the Auckland Transport server runs in New Zealand
     static _localIsoDate() {
-        const d = new Date();
-        const year = d.getFullYear();
-        let month = d.getMonth() + 1;
-        let day = d.getDate();
-        if (month < 10) month = `0${month}`;
-        if (day < 10) day = `0${day}`;
-        return [year, month, day].join("-");
+        return spacetime.now("Pacific/Auckland").format("iso-short");
     }
 
     clearCache() {
