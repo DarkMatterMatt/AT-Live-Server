@@ -305,15 +305,28 @@ class AucklandTransportData {
                 .replace(/Via/g, "via")
                 .replace(/\./g, "");
 
+            // sort longNames, routeIds for consistency in the API
+            processedRoute.longNames = new Set(longNames.sort((a, b) => a.localeCompare(b)));
+            processedRoute.routeIds = new Set([...processedRoute.routeIds].sort((a, b) => a.localeCompare(b)));
+
             for (let i = 0; i < 2; i++) {
                 if (processedRoute.shapeIds[i].size === 0) {
                     processedRoute.polylines[i] = [];
                     continue;
                 }
-                // fetch all shapes and generate polylines for the most common
-                const shapeId = [...processedRoute.shapeIds[i]].sort((a, b) => b[1] - a[1])[0][0];
-                const shape = await this.query(`gtfs/shapes/shapeId/${shapeId}`);
+                // fetch shapes for the most common routes
+                const shapeIds = [...processedRoute.shapeIds[i]];
+                const highestCount = Math.max(...shapeIds.map(a => a[1]));
+                const shapes = await Promise.all(
+                    shapeIds.filter(a => a[1] > highestCount * 0.75)
+                        .map(a => this.query(`gtfs/shapes/shapeId/${a[0]}`))
+                );
+                // generate polyline for the longest shape
+                const shape = shapes.sort((a, b) => b.length - a.length)[0];
                 processedRoute.polylines[i] = shape.map(s => ({ lat: s.shape_pt_lat, lng: s.shape_pt_lon }));
+
+                // sort shapeIds for consistency in the API
+                processedRoute.shapeIds[i] = new Map(shapeIds.sort((a, b) => a[0].localeCompare(b[0])));
             }
         }));
 
