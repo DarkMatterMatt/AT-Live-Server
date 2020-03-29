@@ -40,7 +40,7 @@ class AucklandTransportData {
                     longNames: Set(),
                     longName,
                     routeIds:  Set(routeId),
-                    shapeIds:  [new Set(), new Set()],
+                    shapeIds:  [new Map<shapeId, count>(), new Map<shapeId, count>()],
                     polylines: [[{ lat, lng }], [{ lat, lng }]],
                     vehicles:  Map(vehicleId: {
                         vehicleId,
@@ -274,7 +274,7 @@ class AucklandTransportData {
                 this._byShortName.set(shortName, {
                     shortName,
                     routeIds:  new Set(),
-                    shapeIds:  [new Set(), new Set()],
+                    shapeIds:  [new Map(), new Map()],
                     longNames: new Set(),
                     longName:  "",
                     polylines: [[], []],
@@ -293,7 +293,9 @@ class AucklandTransportData {
         const trips = await this.query("gtfs/trips");
         const filteredTrips = trips.filter(t => t.trip_id.endsWith(this._version));
         for (const trip of filteredTrips) {
-            this._byRouteId.get(trip.route_id).shapeIds[trip.direction_id].add(trip.shape_id);
+            const shapesMap = this._byRouteId.get(trip.route_id).shapeIds[trip.direction_id];
+            const count = shapesMap.get(trip.shape_id) || 0;
+            shapesMap.set(trip.shape_id, count + 1);
         }
 
         // select longName, get polylines from shapeIds
@@ -313,10 +315,9 @@ class AucklandTransportData {
                     processedRoute.polylines[i] = [];
                     continue;
                 }
-                // fetch all shapes and generate polylines for the longest
-                const shapes = await Promise.all([...processedRoute.shapeIds[i]]
-                    .map(id => this.query(`gtfs/shapes/shapeId/${id}`)));
-                const shape = shapes.sort((a, b) => b.length - a.length)[0];
+                // fetch all shapes and generate polylines for the most common
+                const shapeId = [...processedRoute.shapeIds[i]].sort((a, b) => b[1] - a[1])[0][0];
+                const shape = await this.query(`gtfs/shapes/shapeId/${shapeId}`);
                 processedRoute.polylines[i] = shape.map(s => ({ lat: s.shape_pt_lat, lng: s.shape_pt_lon }));
             }
         }));

@@ -73,9 +73,10 @@ routes.set("routes", new Route("routes")
                     }
 
                     case "shapeIds": {
-                        const shapes0 = processedRoute[f][0];
-                        const shapes1 = processedRoute[f][1];
-                        data[shortName][f] = [[...shapes0], [...shapes1]];
+                        data[shortName][f] = [
+                            Object.fromEntries(processedRoute[f][0].entries()),
+                            Object.fromEntries(processedRoute[f][1].entries()),
+                        ];
                         break;
                     }
 
