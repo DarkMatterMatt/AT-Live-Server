@@ -154,7 +154,7 @@ class AucklandTransportData {
         if (!id) return;
 
         const routeId = trip.routeId || trip.route_id;
-        const directionId = trip.directionId || trip.direction_id;
+        const directionId = trip.directionId !== undefined ? trip.directionId : trip.direction_id;
         if (!routeId || directionId === undefined) return;
 
         const [lat, lng] = [position.latitude, position.longitude];
