@@ -11,6 +11,15 @@ routes.set("default", new GetRoute("default")
         });
     }));
 
+routes.set("status", new GetRoute("status")
+    .setExecutor(function ({ aucklandTransportData }) {
+        this.setCacheMaxAge(1);
+        return this.finish("success", {
+            websocketUpdates:   aucklandTransportData.webSocketActive(),
+            livePollingUpdates: aucklandTransportData.livePollingActive(),
+        });
+    }));
+
 routes.set("routes", new GetRoute("routes")
     .setExecutor(function ({ params, aucklandTransportData }) {
         const shortNames = params.get("shortNames") && params.get("shortNames").split(",");

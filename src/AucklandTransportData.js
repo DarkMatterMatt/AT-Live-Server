@@ -81,6 +81,14 @@ class AucklandTransportData {
         return this._byShortName.get(shortName);
     }
 
+    webSocketActive() {
+        return this._ws !== null;
+    }
+
+    livePollingActive() {
+        return this._livePollingInterval !== null;
+    }
+
     async query(url, noCache) {
         if (!noCache) {
             const cachedData = this._cache.load(url);
