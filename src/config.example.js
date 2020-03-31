@@ -1,4 +1,5 @@
 module.exports = {
+    port:   9001,
     useSSL: false,
     ssl:    {
         key_file_name:  "misc/key.pem",
