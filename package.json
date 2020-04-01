@@ -29,6 +29,7 @@
         "node-fetch": "^2.6.0",
         "node-localstorage": "^2.1.5",
         "p-limit": "^2.2.2",
+        "simplify-js": "^1.2.4",
         "spacetime": "^6.4.2",
         "uWebSockets.js": "github:uNetworking/uWebSockets.js#v17.3.0",
         "ws": "^7.2.3"

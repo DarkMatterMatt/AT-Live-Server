@@ -1,5 +1,6 @@
 const fetch = require("node-fetch");
 const pLimit = require("p-limit");
+const simplify = require("simplify-js");
 const spacetime = require("spacetime");
 const WebSocket = require("ws");
 const Cache = require("./Cache");
@@ -13,6 +14,7 @@ const REMOVE_OLD_VEHICLE_INTERVAL = 10 * 1000;
 const OLD_VEHICLE_THRESHOLD = 120 * 1000;
 const API_KEY_LENGTH = 32;
 const LIVE_POLLING_INTERVAL = 25 * 1000;
+const POLYLINE_SIMPLIFICATION = 0.000005; // simplify-js epsilon
 
 // https://developers.google.com/transit/gtfs/reference#routestxt
 const TRANSIT_TYPES = ["tram", "subway", "rail", "bus", "ferry"];
@@ -62,11 +64,6 @@ class AucklandTransportData {
 
         /* Links to _byShortName */
         this._byRouteId = new Map();
-    }
-
-    // Note: the Auckland Transport server runs in New Zealand
-    static _localIsoDate() {
-        return spacetime.now("Pacific/Auckland").format("iso-short");
     }
 
     clearCache() {
@@ -119,11 +116,23 @@ class AucklandTransportData {
     async queryLatestVersion() {
         const versions = await this.query("gtfs/versions", "noCache");
 
-        // note: AT does this weird thing where a version will end at midnight on a day, but the next one
+        // note1: AT does this weird thing where a version will end at midnight on a day, but the next one
         //   technically doesn't kick in till the next day. (e.g. ends at 0am on Monday, starts at 0am Tuesday)
-        // note2: AT displays times as UTC but they are actually local time
-        const now = this.constructor._localIsoDate();
-        const filtered = versions.filter(v => v.startdate.split("T")[0] <= now && now <= v.enddate.split("T")[0]);
+        //   -> workaround: add one day to the end time
+        // note2: AT displays times as UTC but they are actually local (NZ) time
+        //   -> workaround: remove the trailing Z that indicates the time is UTC (only use the date, as NZ time)
+        // note3: Late buses (e.g. 1am, 2am, 3am) still run on the previous day's route.
+        //   So we should change versions between 3:40am and 5am as there are no buses running at this time
+        //   -> workaround: add four hours to the start and end times (so we switch over at 4am on the start day)
+        const now = spacetime.now();
+        const filtered = versions.filter(v => {
+            const start = spacetime(v.startdate.split("T")[0], "Pacific/Auckland", { dmy: true })
+                .add(4, "hour");
+            const end = spacetime(v.enddate.split("T")[0], "Pacific/Auckland", { dmy: true })
+                .add(4, "hour")
+                .add(1, "day");
+            return now.isBetween(start, end, true);
+        });
         if (filtered.length === 0) {
             console.error("No versions are currently active", versions);
             this._version = "";
@@ -177,6 +186,13 @@ class AucklandTransportData {
         if (lastUpdatedUnix * 1000 < (new Date()).getTime() - OLD_VEHICLE_THRESHOLD) return;
 
         const route = this._byRouteId.get(routeId);
+        if (route === undefined) {
+            // usually because the vehicle is operating off an old route version
+            console.warn("Skipping vehicle update because its parent route does not exist!",
+                routeId, { position, timestamp, trip, vehicle });
+            return;
+        }
+
         const processedVehicle = {
             position:  { lat, lng },
             vehicleId: id,
@@ -351,9 +367,12 @@ class AucklandTransportData {
                     shapeIds.filter(a => a[1] > highestCount * 0.75)
                         .map(a => this.query(`gtfs/shapes/shapeId/${a[0]}`))
                 );
-                // generate polyline for the longest shape
+                // generate polyline for the longest shape (simplified so Google Maps doesn't die)
                 const shape = shapes.sort((a, b) => b.length - a.length)[0];
-                processedRoute.polylines[i] = shape.map(s => ({ lat: s.shape_pt_lat, lng: s.shape_pt_lon }));
+                const simplifiedShape = simplify(
+                    shape.map(s => ({ x: s.shape_pt_lat, y: s.shape_pt_lon })), POLYLINE_SIMPLIFICATION, true
+                );
+                processedRoute.polylines[i] = simplifiedShape.map(s => ({ lat: s.x, lng: s.y }));
 
                 // sort shapeIds for consistency in the API
                 processedRoute.shapeIds[i] = new Map(shapeIds.sort((a, b) => a[0].localeCompare(b[0])));
