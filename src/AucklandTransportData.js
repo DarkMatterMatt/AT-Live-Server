@@ -7,6 +7,7 @@ const Cache = require("./Cache");
 const WS_CODE_CLOSE_NO_RECONNECT = 1000;
 const SLEEP_BEFORE_WS_RECONNECT_503 = 500;
 const SLEEP_BEFORE_WS_RECONNECT_502 = 60 * 1000;
+const SLEEP_BEFORE_WS_RECONNECT_GENERIC = 500;
 const LOOK_FOR_UPDATES_INTERVAL = 5 * 60 * 1000;
 const REMOVE_OLD_VEHICLE_INTERVAL = 10 * 1000;
 const OLD_VEHICLE_THRESHOLD = 120 * 1000;
@@ -30,6 +31,9 @@ class AucklandTransportData {
         this._cache = new Cache("ATCache", maxCacheSizeInBytes, compressCache);
         this._pLimit = pLimit(maxParallelRequests);
         this._ws = null;
+
+        // when the websocket breaks we'll try reconnect
+        this._restartWebSocketTimeout = null;
 
         // websocket is buggy, poll manually every LIVE_POLLING_INTERVAL if it isn't working
         this._livePollingInterval = null;
@@ -200,7 +204,17 @@ class AucklandTransportData {
         }
     }
 
+    restartWebSocketIn(ms) {
+        if (this._restartWebSocketTimeout === null) {
+            this._restartWebSocketTimeout = setTimeout(() => this.startWebSocket(), ms);
+        }
+    }
+
     startWebSocket() {
+        // shouldn't need to clear it, as this function should be the timeout's callback
+        clearTimeout(this._restartWebSocketTimeout);
+        this._restartWebSocketTimeout = null;
+
         if (this._livePollingInterval === null) {
             this._livePollingInterval = setInterval(() => this.loadAllVehiclePositions(), LIVE_POLLING_INTERVAL);
         }
@@ -231,14 +245,17 @@ class AucklandTransportData {
         });
 
         this._ws.on("error", err => {
-            // buggy AT server returns "Unexpected server response: 503"
-            // also has been known to break completely and 502
+            // HTTP errors (only while connecting?)
+            // buggy AT server returns 503 (AKA retry cause it's only temporarily broken), and has been
+            // known to break badly and 502 (this is kinda perma-broken, wait a bit before reconnecting)
             if (err.message === "Unexpected server response: 503") {
-                setTimeout(() => this.startWebSocket(), SLEEP_BEFORE_WS_RECONNECT_503);
+                console.log(`WebSocket returned error 503, retrying in ${SLEEP_BEFORE_WS_RECONNECT_503}ms`);
+                this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_503);
                 return;
             }
             if (err.message === "Unexpected server response: 502") {
-                setTimeout(() => this.startWebSocket(), SLEEP_BEFORE_WS_RECONNECT_502);
+                console.log(`WebSocket returned error 502, retrying in ${SLEEP_BEFORE_WS_RECONNECT_502}ms`);
+                this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_502);
                 return;
             }
             throw err;
@@ -249,11 +266,16 @@ class AucklandTransportData {
 
             if (code === WS_CODE_CLOSE_NO_RECONNECT) {
                 // planned closure, requested internally
+                console.log("WebSocket closed normally");
                 return;
             }
 
             if (code === 1006) {
-                // abnormal closure, handled by "error" event
+                // abnormal closure, restart the websocket (error handler may have already set restartWebSocketTimeout)
+                if (this._restartWebSocketTimeout === null) {
+                    console.log(`WebSocket closed unexpectedly, restarting in ${SLEEP_BEFORE_WS_RECONNECT_GENERIC}ms`);
+                    this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_GENERIC);
+                }
                 return;
             }
 
