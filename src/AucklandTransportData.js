@@ -5,7 +5,8 @@ const spacetime = require("spacetime");
 const WebSocket = require("ws");
 const Cache = require("./Cache");
 
-const WS_CODE_CLOSE_NO_RECONNECT = 1000;
+const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
+const WS_CODE_CLOSE_NO_RECONNECT = 4001;
 const SLEEP_BEFORE_WS_RECONNECT_503 = 500;
 const SLEEP_BEFORE_WS_RECONNECT_502 = 60 * 1000;
 const SLEEP_BEFORE_WS_RECONNECT_GENERIC = 500;
@@ -134,7 +135,7 @@ class AucklandTransportData {
             return now.isBetween(start, end, true);
         });
         if (filtered.length === 0) {
-            console.error("No versions are currently active", versions);
+            console.error("No versions are currently active @", now.format("nice"), versions);
             this._version = "";
         }
         else {
@@ -232,7 +233,15 @@ class AucklandTransportData {
         this._restartWebSocketTimeout = null;
 
         if (this._livePollingInterval === null) {
-            this._livePollingInterval = setInterval(() => this.loadAllVehiclePositions(), LIVE_POLLING_INTERVAL);
+            this._livePollingInterval = setInterval(() => {
+                this.loadAllVehiclePositions();
+
+                // no data from websocket in it's initial 25 secs of being alive, force restart it
+                if (this._ws !== null && this._ws.readyState === this._ws.OPEN) {
+                    this._ws.close(WS_CODE_CLOSE_NO_RECONNECT);
+                }
+                this.startWebSocket();
+            }, LIVE_POLLING_INTERVAL);
         }
 
         this._ws = new WebSocket(this._webSocketUrl + this._key);
@@ -280,9 +289,15 @@ class AucklandTransportData {
         this._ws.on("close", code => {
             this._ws = null;
 
-            if (code === WS_CODE_CLOSE_NO_RECONNECT) {
+            if (code === WS_CODE_CLOSE_PLANNED_SHUTDOWN) {
                 // planned closure, requested internally
-                console.log("WebSocket closed normally");
+                console.log("WebSocket closed as part of a planned shutdown.");
+                return;
+            }
+
+            if (code === WS_CODE_CLOSE_NO_RECONNECT) {
+                // most likely reconnecting from somewhere else
+                console.log("WebSocket close with code: WS_CODE_CLOSE_NO_RECONNECT");
                 return;
             }
 
@@ -301,7 +316,7 @@ class AucklandTransportData {
 
     stopWebSocket() {
         if (this._ws !== null) {
-            this._ws.close(WS_CODE_CLOSE_NO_RECONNECT);
+            this._ws.close(WS_CODE_CLOSE_PLANNED_SHUTDOWN);
         }
     }
 
@@ -385,7 +400,7 @@ class AucklandTransportData {
     async lookForUpdates(forceLoad) {
         const cachedVersion = this._cache.load("latest-version");
         await this.queryLatestVersion();
-        if (cachedVersion !== this._version) {
+        if (this._version && cachedVersion !== this._version) {
             this._cache.clear();
             this._cache.store("latest-version", this._version);
             await this.load();
