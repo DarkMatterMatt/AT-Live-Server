@@ -12,6 +12,8 @@ const SLEEP_BEFORE_WS_RECONNECT_502 = 60 * 1000;
 const SLEEP_BEFORE_WS_RECONNECT_GENERIC = 500;
 const LOOK_FOR_UPDATES_INTERVAL = 5 * 60 * 1000;
 const REMOVE_OLD_VEHICLE_INTERVAL = 10 * 1000;
+const WS_HEALTH_CHECK_INTERVAL = 120 * 1000;
+const WS_HEALTHY_IF_MESSAGE_WITHIN = 15 * 1000;
 const OLD_VEHICLE_THRESHOLD = 120 * 1000;
 const API_KEY_LENGTH = 32;
 const LIVE_POLLING_INTERVAL = 25 * 1000;
@@ -34,12 +36,17 @@ class AucklandTransportData {
         this._cache = new Cache("ATCache", maxCacheSizeInBytes, compressCache);
         this._pLimit = pLimit(maxParallelRequests);
         this._ws = null;
+        this._lastMessageTimestamp = 0;
 
         // when the websocket breaks we'll try reconnect
         this._restartWebSocketTimeout = null;
 
         // websocket is buggy, poll manually every LIVE_POLLING_INTERVAL if it isn't working
         this._livePollingInterval = null;
+
+        // if the websocket hasn't recieved anything for two minutes then check if it is still working
+        this._webSocketHealthLastCheck = (new Date()).getTime();
+        this._webSocketMonitorInterval = setInterval(() => this.checkWebSocketHealth(), 1000);
 
         /* Processed data by short name
             {
@@ -89,6 +96,10 @@ class AucklandTransportData {
 
     livePollingActive() {
         return this._livePollingInterval !== null;
+    }
+
+    lastMessageTimestamp() {
+        return this._lastMessageTimestamp;
     }
 
     async query(url, noCache) {
@@ -170,28 +181,28 @@ class AucklandTransportData {
     }
 
     loadVehiclePosition({ position, timestamp, trip, vehicle }) {
-        if (!position || !timestamp || !trip || !vehicle) return;
+        if (!position || !timestamp || !trip || !vehicle) return false;
 
         const { id } = vehicle;
-        if (!id) return;
+        if (!id) return false;
 
         const routeId = trip.routeId || trip.route_id;
         const directionId = trip.directionId !== undefined ? trip.directionId : trip.direction_id;
-        if (!routeId || directionId === undefined) return;
+        if (!routeId || directionId === undefined) return false;
 
         const [lat, lng] = [position.latitude, position.longitude];
-        if (!lat || !lng) return;
+        if (!lat || !lng) return false;
 
         // ignore vehicles more than 2 minutes old
         const lastUpdatedUnix = Number.parseInt(timestamp, 10);
-        if (lastUpdatedUnix * 1000 < (new Date()).getTime() - OLD_VEHICLE_THRESHOLD) return;
+        if (lastUpdatedUnix * 1000 < (new Date()).getTime() - OLD_VEHICLE_THRESHOLD) return false;
 
         const route = this._byRouteId.get(routeId);
         if (route === undefined) {
             // usually because the vehicle is operating off an old route version
             console.warn("Skipping vehicle update because its parent route does not exist!",
                 routeId, { position, timestamp, trip, vehicle });
-            return;
+            return false;
         }
 
         const processedVehicle = {
@@ -212,12 +223,26 @@ class AucklandTransportData {
                 shortName: route.shortName,
             }));
         }
+        return true;
     }
 
     async loadAllVehiclePositions() {
         const response = await this.query("public/realtime/vehiclelocations", "noCache");
-        for (const { vehicle } of response.entity) {
-            this.loadVehiclePosition(vehicle);
+        // return number of new vehicle updates
+        return response.entity.reduce((a, b) => a + this.loadVehiclePosition(b.vehicle), 0);
+    }
+
+    async checkWebSocketHealth() {
+        if (this._ws === null) return;
+        const now = (new Date()).getTime();
+        if (this._webSocketHealthLastCheck > now - WS_HEALTH_CHECK_INTERVAL) return;
+        if (this._lastMessageTimestamp * 1000 > now - WS_HEALTHY_IF_MESSAGE_WITHIN) return;
+        this._webSocketHealthLastCheck = now;
+
+        // check if there are new vehicles that the websocket didn't know about
+        if (await this.loadAllVehiclePositions() > 0) {
+            console.warn("WebSocket wasn't recieving vehicle updates, force restarting it now");
+            this.forceRestartWebSocket();
         }
     }
 
@@ -227,21 +252,20 @@ class AucklandTransportData {
         }
     }
 
+    forceRestartWebSocket() {
+        if (this._ws !== null && this._ws.readyState === this._ws.OPEN) {
+            this._ws.close(WS_CODE_CLOSE_NO_RECONNECT);
+        }
+        this.restartWebSocketIn(100);
+    }
+
     startWebSocket() {
         // shouldn't need to clear it, as this function should be the timeout's callback
         clearTimeout(this._restartWebSocketTimeout);
         this._restartWebSocketTimeout = null;
 
         if (this._livePollingInterval === null) {
-            this._livePollingInterval = setInterval(() => {
-                this.loadAllVehiclePositions();
-
-                // no data from websocket in it's initial 25 secs of being alive, force restart it
-                if (this._ws !== null && this._ws.readyState === this._ws.OPEN) {
-                    this._ws.close(WS_CODE_CLOSE_NO_RECONNECT);
-                }
-                this.startWebSocket();
-            }, LIVE_POLLING_INTERVAL);
+            this._livePollingInterval = setInterval(() => this.loadAllVehiclePositions(), LIVE_POLLING_INTERVAL);
         }
 
         this._ws = new WebSocket(this._webSocketUrl + this._key);
@@ -265,6 +289,10 @@ class AucklandTransportData {
 
             const data = JSON.parse(data_).vehicle;
             if (!data) return;
+
+            if (data.timestamp > this._lastMessageTimestamp) {
+                this._lastMessageTimestamp = data.timestamp;
+            }
 
             this.loadVehiclePosition(data);
         });
