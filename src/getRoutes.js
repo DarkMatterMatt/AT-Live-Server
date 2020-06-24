@@ -43,6 +43,9 @@ routes.set("routes", new GetRoute("routes")
 
         const processedRoutes = aucklandTransportData.getRoutesByShortName();
         const data = {};
+        const correctCapitalization = [
+            "shortName", "longName", "polylines", "type", "agencyId", "longNames", "routeIds", "shapeIds", "vehicles",
+        ];
 
         for (const [shortName, processedRoute] of processedRoutes.entries()) {
             // skip unwanted routes
@@ -51,7 +54,12 @@ routes.set("routes", new GetRoute("routes")
             }
             data[shortName] = {};
             for (const f of fetch) {
-                switch (f) {
+                const cc = correctCapitalization.find(x => x.toLowerCase() === f.toLowerCase());
+                if (cc === undefined) {
+                    continue;
+                }
+
+                switch (cc) {
                     default: break;
 
                     // copy primitives
@@ -60,28 +68,28 @@ routes.set("routes", new GetRoute("routes")
                     case "polylines":
                     case "type":
                     case "agencyId": {
-                        data[shortName][f] = processedRoute[f];
+                        data[shortName][f] = processedRoute[cc];
                         break;
                     }
 
                     // copy Sets
                     case "longNames":
                     case "routeIds": {
-                        data[shortName][f] = [...processedRoute[f]];
+                        data[shortName][f] = [...processedRoute[cc]];
                         break;
                     }
 
                     case "shapeIds": {
                         data[shortName][f] = [
-                            Object.fromEntries(processedRoute[f][0].entries()),
-                            Object.fromEntries(processedRoute[f][1].entries()),
+                            Object.fromEntries(processedRoute[cc][0].entries()),
+                            Object.fromEntries(processedRoute[cc][1].entries()),
                         ];
                         break;
                     }
 
                     // copy Maps (of primitives)
                     case "vehicles": {
-                        data[shortName][f] = Object.fromEntries(processedRoute[f].entries());
+                        data[shortName][f] = Object.fromEntries(processedRoute[cc].entries());
                         break;
                     }
                 }
