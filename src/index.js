@@ -95,6 +95,10 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
         route.execute({ res, req, params, aucklandTransportData });
     });
 
+    app.get("/generate_204", res => {
+        res.writeStatus("204 No Content").end();
+    });
+
     app.any("/*", res => {
         res.writeStatus("404 Not Found");
         res.writeHeader("Content-Type", "application/json");
