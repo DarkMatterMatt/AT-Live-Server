@@ -5,3 +5,4 @@ LICENSE         text eol=lf
 *.js            text eol=lf
 *.json          text eol=lf
 *.md            text eol=lf
+*.ts            text eol=lf

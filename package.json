@@ -24,6 +24,7 @@
     },
     "homepage": "https://github.com/DarkMatterMatt/AT-Live-Server#readme",
     "dependencies": {
+        "@types/node": "^14.0.13",
         "crc-32": "^1.2.0",
         "lz-string": "^1.4.4",
         "node-fetch": "^2.6.0",
@@ -31,6 +32,7 @@
         "p-limit": "^2.2.2",
         "simplify-js": "^1.2.4",
         "spacetime": "^6.4.2",
+        "typescript": "^3.9.5",
         "uWebSockets.js": "github:uNetworking/uWebSockets.js#v17.3.0",
         "ws": "^7.2.3"
     },
