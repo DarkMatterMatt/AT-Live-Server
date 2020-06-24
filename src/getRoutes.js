@@ -13,11 +13,12 @@ routes.set("default", new GetRoute("default")
 
 routes.set("status", new GetRoute("status")
     .setCacheMaxAge(0)
-    .setExecutor(function ({ aucklandTransportData }) {
+    .setExecutor(function ({ aucklandTransportData, activeWebSockets }) {
         return this.finish("success", {
             websocketUpdates:     aucklandTransportData.webSocketActive(),
             livePollingUpdates:   aucklandTransportData.livePollingActive(),
             lastMessageTimestamp: aucklandTransportData.lastMessageTimestamp(),
+            activeWebSockets:     activeWebSockets.size,
         });
     }));
 

@@ -77,7 +77,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
                 });
                 return;
             }
-            route.execute({ ws, json, aucklandTransportData });
+            route.execute({ ws, json, aucklandTransportData, activeWebSockets });
         },
     });
 
@@ -92,7 +92,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
             }));
             return;
         }
-        route.execute({ res, req, params, aucklandTransportData });
+        route.execute({ res, req, params, aucklandTransportData, activeWebSockets });
     });
 
     app.get("/generate_204", res => {
