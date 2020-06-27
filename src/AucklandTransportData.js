@@ -32,7 +32,8 @@ class AucklandTransportData {
         this._key = key;
         this._baseUrl = baseUrl;
         this._webSocketUrl = webSocketUrl;
-        this._version = "";
+        this._allVersions = new Map();
+        this._currentVersions = [];
         this._cache = new Cache("ATCache", maxCacheSizeInBytes, compressCache);
         this._pLimit = pLimit(maxParallelRequests);
         this._ws = null;
@@ -126,33 +127,40 @@ class AucklandTransportData {
     }
 
     async queryLatestVersion() {
-        const versions = await this.query("gtfs/versions", "noCache");
+        for (const v of await this.query("gtfs/versions", "noCache")) {
+            this._allVersions.set(v.version, v);
+        }
 
         // note1: AT does this weird thing where a version will end at midnight on a day, but the next one
         //   technically doesn't kick in till the next day. (e.g. ends at 0am on Monday, starts at 0am Tuesday)
         //   -> workaround: add one day to the end time
         // note2: AT displays times as UTC but they are actually local (NZ) time
-        //   -> workaround: remove the trailing Z that indicates the time is UTC (only use the date, as NZ time)
-        // note3: Late buses (e.g. 1am, 2am, 3am) still run on the previous day's route.
-        //   So we should change versions between 3:40am and 5am as there are no buses running at this time
-        //   -> workaround: add four hours to the start and end times (so we switch over at 4am on the start day)
+        //   -> workaround: completely remove the time and timezone (only use the date, as NZ time)
+        // note3: Late buses (e.g. 1am, 2am, 3am) still run on the previous day's route
+        //   -> workaround: allow multiple versions to be considered 'active' at once
+        // note4: AT removes routes that have expired, even when buses are still using them (see note3)
+        //   -> workaround: store our own array, _allVersions, of the versions we see
         const now = spacetime.now();
-        const filtered = versions.filter(v => {
+        const filtered = [...this._allVersions.values()].filter(v => {
             const start = spacetime(v.startdate.split("T")[0], "Pacific/Auckland", { dmy: true })
-                .add(4, "hour");
+                .subtract(1, "day");
             const end = spacetime(v.enddate.split("T")[0], "Pacific/Auckland", { dmy: true })
-                .add(4, "hour")
-                .add(1, "day");
+                .add(2, "day");
             return now.isBetween(start, end, true);
         });
         if (filtered.length === 0) {
-            console.error("No versions are currently active @", now.format("nice"), versions);
-            this._version = "";
+            console.error("No versions are currently active @", now.format("nice"), [...this._allVersions.values()]);
         }
-        else {
-            this._version = filtered[0].version;
+        this._currentVersions = filtered.map(v => v.version).sort();
+        return this._currentVersions;
+    }
+
+    isCurrentVersion(id) {
+        // return true if id ends with any current version
+        if (this._currentVersions.length === 0) {
+            return true;
         }
-        return this._version;
+        return this._currentVersions.some(v => id.endsWith(v));
     }
 
     async validateApiKey() {
@@ -351,7 +359,7 @@ class AucklandTransportData {
     async load() {
         // routes are required to look up short names
         const routes = await this.query("gtfs/routes");
-        const filteredRoutes = routes.filter(r => r.route_id.endsWith(this._version));
+        const filteredRoutes = routes.filter(r => this.isCurrentVersion(r.route_id));
         for (const route of filteredRoutes) {
             const shortName = route.route_short_name;
             if (!this._byShortName.has(shortName)) {
@@ -375,7 +383,7 @@ class AucklandTransportData {
 
         // trips are required for fetching shapes
         const trips = await this.query("gtfs/trips");
-        const filteredTrips = trips.filter(t => t.trip_id.endsWith(this._version));
+        const filteredTrips = trips.filter(t => this.isCurrentVersion(t.trip_id));
         for (const trip of filteredTrips) {
             const shapesMap = this._byRouteId.get(trip.route_id).shapeIds[trip.direction_id];
             const count = shapesMap.get(trip.shape_id) || 0;
@@ -428,9 +436,8 @@ class AucklandTransportData {
     async lookForUpdates(forceLoad) {
         const cachedVersion = this._cache.load("latest-version");
         await this.queryLatestVersion();
-        if (this._version && cachedVersion !== this._version) {
-            this._cache.clear();
-            this._cache.store("latest-version", this._version);
+        if (this._currentVersions.length && JSON.stringify(cachedVersion) !== JSON.stringify(this._currentVersions)) {
+            this._cache.store("latest-version", this._currentVersions);
             await this.load();
         }
         else if (forceLoad) {
