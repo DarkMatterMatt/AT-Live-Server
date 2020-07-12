@@ -4,6 +4,7 @@ const simplify = require("simplify-js");
 const spacetime = require("spacetime");
 const WebSocket = require("ws");
 const Cache = require("./Cache");
+const logger = require("./logger");
 
 const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
 const WS_CODE_CLOSE_NO_RECONNECT = 4001;
@@ -116,7 +117,7 @@ class AucklandTransportData {
         })).then(r => r.json());
 
         if (result.status !== "OK") {
-            console.error(`Failed fetching ${url}:`, result);
+            logger.error(`Failed fetching ${url}:`, result);
             throw new Error(`Failed fetching ${url}: ${result.error || result.message}`);
         }
 
@@ -149,7 +150,7 @@ class AucklandTransportData {
             return now.isBetween(start, end, true);
         });
         if (filtered.length === 0) {
-            console.error("No versions are currently active @", now.format("nice"), [...this._allVersions.values()]);
+            logger.error("No versions are currently active @", now.format("nice"), [...this._allVersions.values()]);
         }
         this._currentVersions = filtered.map(v => v.version).sort();
         return this._currentVersions;
@@ -208,7 +209,7 @@ class AucklandTransportData {
         const route = this._byRouteId.get(routeId);
         if (route === undefined) {
             // usually because the vehicle is operating off an old route version
-            console.warn("Skipping vehicle update because its parent route does not exist!",
+            logger.warn("Skipping vehicle update because its parent route does not exist!",
                 routeId, { position, timestamp, trip, vehicle });
             return false;
         }
@@ -249,7 +250,7 @@ class AucklandTransportData {
 
         // check if there are new vehicles that the websocket didn't know about
         if (await this.loadAllVehiclePositions() > 0) {
-            console.warn("WebSocket wasn't recieving vehicle updates, force restarting it now");
+            logger.warn("WebSocket wasn't recieving vehicle updates, force restarting it now");
             this.forceRestartWebSocket();
         }
     }
@@ -310,12 +311,12 @@ class AucklandTransportData {
             // buggy AT server returns 503 (AKA retry cause it's only temporarily broken), and has been
             // known to break badly and 502 (this is kinda perma-broken, wait a bit before reconnecting)
             if (err.message === "Unexpected server response: 503") {
-                console.log(`WebSocket returned error 503, retrying in ${SLEEP_BEFORE_WS_RECONNECT_503}ms`);
+                logger.warn(`WebSocket returned error 503, retrying in ${SLEEP_BEFORE_WS_RECONNECT_503}ms`);
                 this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_503);
                 return;
             }
             if (err.message === "Unexpected server response: 502") {
-                console.log(`WebSocket returned error 502, retrying in ${SLEEP_BEFORE_WS_RECONNECT_502}ms`);
+                logger.warn(`WebSocket returned error 502, retrying in ${SLEEP_BEFORE_WS_RECONNECT_502}ms`);
                 this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_502);
                 return;
             }
@@ -327,20 +328,20 @@ class AucklandTransportData {
 
             if (code === WS_CODE_CLOSE_PLANNED_SHUTDOWN) {
                 // planned closure, requested internally
-                console.log("WebSocket closed as part of a planned shutdown.");
+                logger.verbose("WebSocket closed as part of a planned shutdown.");
                 return;
             }
 
             if (code === WS_CODE_CLOSE_NO_RECONNECT) {
                 // most likely reconnecting from somewhere else
-                console.log("WebSocket close with code: WS_CODE_CLOSE_NO_RECONNECT");
+                logger.verbose("WebSocket close with code: WS_CODE_CLOSE_NO_RECONNECT");
                 return;
             }
 
             if (code === 1006) {
                 // abnormal closure, restart the websocket (error handler may have already set restartWebSocketTimeout)
                 if (this._restartWebSocketTimeout === null) {
-                    console.log(`WebSocket closed unexpectedly, restarting in ${SLEEP_BEFORE_WS_RECONNECT_GENERIC}ms`);
+                    logger.warn(`WebSocket closed unexpectedly, restarting in ${SLEEP_BEFORE_WS_RECONNECT_GENERIC}ms`);
                     this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_GENERIC);
                 }
                 return;
@@ -358,7 +359,7 @@ class AucklandTransportData {
 
     async load() {
         // routes are required to look up short names
-        const routes = await this.query("gtfs/routes");
+        const routes = await this.query("gtfs/routes", "noCache");
         const filteredRoutes = routes.filter(r => this.isCurrentVersion(r.route_id));
         for (const route of filteredRoutes) {
             const shortName = route.route_short_name;
@@ -382,7 +383,7 @@ class AucklandTransportData {
         }
 
         // trips are required for fetching shapes
-        const trips = await this.query("gtfs/trips");
+        const trips = await this.query("gtfs/trips", "noCache");
         const filteredTrips = trips.filter(t => this.isCurrentVersion(t.trip_id));
         for (const trip of filteredTrips) {
             const shapesMap = this._byRouteId.get(trip.route_id).shapeIds[trip.direction_id];

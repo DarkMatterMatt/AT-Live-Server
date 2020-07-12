@@ -22,4 +22,15 @@ module.exports = {
         maxCacheSizeInBytes: 100 * 1024 * 1024,
         compressCache:       false,
     },
+    logger: {
+        logFile: "combined.log",
+        colors:  {
+            error:   "redBright",
+            warn:    "yellowBright",
+            info:    "greenBright",
+            verbose: "cyanBright",
+        },
+        // uncomment to completely override the default logger options in logger.js
+        // opts: {}
+    },
 };

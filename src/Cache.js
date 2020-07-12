@@ -1,6 +1,7 @@
 const  { LocalStorage } = require("node-localstorage");
 const LZString = require("lz-string");
 const { isTruthy } = require("./TruthyUserInput");
+const logger = require("./logger");
 
 /** localStorage cache for JSON serialisable objects */
 class Cache {
@@ -10,7 +11,7 @@ class Cache {
 
         const prevCompress = JSON.parse(this._localStorage.getItem("_cache_option_compress"));
         if (prevCompress !== null && prevCompress !== this.compress) {
-            console.warn("LocalStorage compression method changed. Resetting cache");
+            logger.warn("LocalStorage compression method changed. Resetting cache");
             this.clear();
         }
         this._localStorage.setItem("_cache_option_compress", JSON.stringify(this.compress));
@@ -25,7 +26,7 @@ class Cache {
             this._localStorage.setItem(k, tmp);
         }
         catch (err) {
-            console.warn(`Cache: error while setting '${k}'`, err);
+            logger.warn(`Cache: error while setting '${k}'`, err);
         }
     }
 

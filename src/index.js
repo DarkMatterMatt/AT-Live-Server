@@ -3,8 +3,17 @@ const AucklandTransportData = require("./AucklandTransportData");
 const C = require("./config");
 const webSocketRoutes = require("./webSocketRoutes");
 const getRoutes = require("./getRoutes");
+const logger = require("./logger");
 
 const WS_CODE_CLOSE_GOING_AWAY = 1001;
+
+process.on("unhandledRejection", err => {
+    logger.error("unhandledRejection:", err);
+});
+
+process.on("uncaughtException", err => {
+    logger.error("uncaughtException:", err);
+});
 
 const app = C.useSSL ? uWS.SSLApp(C.ssl) : uWS.App();
 
@@ -19,7 +28,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
     aucklandTransportData.startAutoUpdates();
 
     process.on("SIGINT", () => {
-        console.log("Caught interrupt signal");
+        logger.info("Caught interrupt signal");
         aucklandTransportData.stopAutoUpdates();
         aucklandTransportData.stopWebSocket();
         for (const ws of activeWebSockets.values()) {
@@ -111,7 +120,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
     app.listen(C.port, token => {
         if (token) {
             listenSocket = token;
-            console.log(`Listening to port ${C.port}`);
+            logger.info(`Listening to port ${C.port}`);
         }
     });
 })();
