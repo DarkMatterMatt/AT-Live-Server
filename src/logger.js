@@ -4,6 +4,7 @@ const { inspect } = require("util");
 const { SPLAT } = require("triple-beam");
 const jsonStringify_ = require("fast-safe-stringify");
 const C = require("./config");
+require("winston-daily-rotate-file");
 
 if (!C.logger) C.logger = {};
 
@@ -46,8 +47,9 @@ const jsonStringify = obj => jsonStringify_(obj, jsonStringifyErrors);
 
 const logger = createLogger(C.logger.opts || {
     transports: [
-        new transports.File({
-            filename: C.logger.logFile || "combined.log",
+        new transports.DailyRotateFile({
+            filename: C.logger.logFile || "combined_%DATE%.log",
+            maxFiles: "14d",
             format:   format.combine(
                 format.timestamp(),
                 format.errors({ stack: true }),

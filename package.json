@@ -1,6 +1,6 @@
 {
     "name": "at-live-server",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "description": "Intermediate server to provide simplified live data for the AT Live Client",
     "main": "src/index.js",
     "scripts": {
@@ -38,6 +38,7 @@
         "typescript": "^3.9.5",
         "uWebSockets.js": "github:uNetworking/uWebSockets.js#v17.3.0",
         "winston": "^3.3.3",
+        "winston-daily-rotate-file": "^4.5.0",
         "ws": "^7.2.3"
     },
     "devDependencies": {

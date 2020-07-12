@@ -1,6 +1,9 @@
 config.js
 localStorage/*/
 
+# winston log-rotate tracking file
+.*-audit.json
+
 ### default Node gitignore
 
 # Logs
