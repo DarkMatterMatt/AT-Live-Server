@@ -23,8 +23,9 @@ module.exports = {
         compressCache:       false,
     },
     logger: {
-        logFile: "combined_%DATE%.log",
-        colors:  {
+        logFile:  "combined_%DATE%.log",
+        logLevel: "info",
+        colors:   {
             error:   "redBright",
             warn:    "yellowBright",
             info:    "greenBright",

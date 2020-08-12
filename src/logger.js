@@ -48,6 +48,7 @@ const jsonStringify = obj => jsonStringify_(obj, jsonStringifyErrors);
 const logger = createLogger(C.logger.opts || {
     transports: [
         new transports.DailyRotateFile({
+            level:    C.logger.logLevel || "info",
             filename: C.logger.logFile || "combined_%DATE%.log",
             maxFiles: "14d",
             format:   format.combine(

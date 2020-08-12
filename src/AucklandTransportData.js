@@ -17,14 +17,31 @@ const WS_HEALTH_CHECK_INTERVAL = 120 * 1000;
 const WS_HEALTHY_IF_MESSAGE_WITHIN = 15 * 1000;
 const OLD_VEHICLE_THRESHOLD = 120 * 1000;
 const API_KEY_LENGTH = 32;
-const LIVE_POLLING_INTERVAL = 25 * 1000;
+const DEFAULT_LIVE_POLLING_INTERVAL = 25 * 1000;
 const POLYLINE_SIMPLIFICATION = 0.000005; // simplify-js epsilon
 
 // https://developers.google.com/transit/gtfs/reference#routestxt
 const TRANSIT_TYPES = ["tram", "subway", "rail", "bus", "ferry"];
+const OCCUPANCY_STATUS = [
+    "EMPTY",
+    "MANY_SEATS_AVAILABLE",
+    "FEW_SEATS_AVAILABLE",
+    "STANDING_ROOM_ONLY",
+    "CRUSHED_STANDING_ROOM_ONLY",
+    "FULL",
+    "NOT_ACCEPTING_PASSENGERS",
+];
 
 class AucklandTransportData {
-    constructor({ key, baseUrl, webSocketUrl, maxCacheSizeInBytes, compressCache, maxParallelRequests = 10 }, uWSApp) {
+    constructor({
+        key,
+        baseUrl,
+        webSocketUrl,
+        maxCacheSizeInBytes,
+        compressCache,
+        maxParallelRequests = 10,
+        livePollingInterval: livePollingIntervalSetting = DEFAULT_LIVE_POLLING_INTERVAL,
+    }, uWSApp) {
         if (!key) throw new Error("AucklandTransportData: Missing API key");
         if (!baseUrl) throw new Error("AucklandTransportData: Missing API URL");
         if (!webSocketUrl) throw new Error("AucklandTransportData: Missing WebSocket URL");
@@ -45,6 +62,7 @@ class AucklandTransportData {
 
         // websocket is buggy, poll manually every LIVE_POLLING_INTERVAL if it isn't working
         this._livePollingInterval = null;
+        this._livePollingIntervalSetting = livePollingIntervalSetting;
 
         // if the websocket hasn't recieved anything for two minutes then check if it is still working
         this._webSocketHealthLastCheck = (new Date()).getTime();
@@ -189,8 +207,11 @@ class AucklandTransportData {
         });
     }
 
-    loadVehiclePosition({ position, timestamp, trip, vehicle }) {
+    loadVehiclePosition(data) {
+        const { position, timestamp, trip, vehicle } = data;
         if (!position || !timestamp || !trip || !vehicle) return false;
+
+        const occupancyStatus = data.occupancyStatus || OCCUPANCY_STATUS[data.occupancy_status] || null;
 
         const { id } = vehicle;
         if (!id) return false;
@@ -219,6 +240,7 @@ class AucklandTransportData {
             vehicleId: id,
             lastUpdatedUnix,
             directionId,
+            occupancyStatus,
         };
 
         const old = route.vehicles.get(id);
@@ -274,7 +296,10 @@ class AucklandTransportData {
         this._restartWebSocketTimeout = null;
 
         if (this._livePollingInterval === null) {
-            this._livePollingInterval = setInterval(() => this.loadAllVehiclePositions(), LIVE_POLLING_INTERVAL);
+            this._livePollingInterval = setInterval(
+                () => this.loadAllVehiclePositions(),
+                this._livePollingIntervalSetting
+            );
         }
 
         this._ws = new WebSocket(this._webSocketUrl + this._key);
@@ -287,6 +312,7 @@ class AucklandTransportData {
                     trip { routeId directionId }
                     position { latitude longitude }
                     timestamp
+                    occupancyStatus
                 } }`,
             }));
         });
