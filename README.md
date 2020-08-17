@@ -1,2 +1,4 @@
 # AT-Live-Server
-Intermediate server to provide simplified live data for the AT Live Client
+An intermediary server to provide normalised live data [AT Live](https://mattm.win/ATLive).
+
+The front-end is also on GitHub, [AT-Live-Client](https://github.com/DarkMatterMatt/AT-Live-Client).
