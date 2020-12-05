@@ -15,6 +15,7 @@
         "strictFunctionTypes": true,
         "strictPropertyInitialization": false,
 
+        "outDir": "dist",
         "baseUrl": "./",
         "paths": {
             "*" : ["src/types/*"]
