@@ -4,6 +4,8 @@ import C from "./config";
 import webSocketRoutes from "./webSocketRoutes";
 import getRoutes from "./getRoutes";
 import logger from "./logger";
+import { URLSearchParams } from "url";
+import { TextDecoder } from "util";
 
 const WS_CODE_CLOSE_GOING_AWAY = 1001;
 

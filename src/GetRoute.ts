@@ -1,4 +1,5 @@
 import CRC32 from "crc-32";
+import { URLSearchParams } from "url";
 import { HttpRequest, HttpResponse } from "uWebSockets.js";
 import Route, { RouteExecuteOpts } from "./Route";
 

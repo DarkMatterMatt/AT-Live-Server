@@ -72,7 +72,7 @@ const logger = createLogger(C.logger.opts || {
                     const coloredLevel = colorize(colors[info.level], info.level.padEnd(7));
                     const msg = formatWithInspect(info.message);
                     // SPLAT is always a valid index for TransformableInfo
-                    const splatArgs = info[(SPLAT as unknown) as string] ?? [];
+                    const splatArgs = info[(SPLAT as unknown) as string] || [];
                     const rest = splatArgs.map(formatWithInspect).join(" ");
                     return `${info.timestamp}  ${coloredLevel}  ${msg} ${rest}`;
                 })
