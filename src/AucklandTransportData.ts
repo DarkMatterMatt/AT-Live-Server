@@ -18,21 +18,11 @@ const REMOVE_OLD_VEHICLE_INTERVAL = 10 * 1000;
 const WS_HEALTH_CHECK_INTERVAL = 120 * 1000;
 const WS_HEALTHY_IF_MESSAGE_WITHIN = 15 * 1000;
 const OLD_VEHICLE_THRESHOLD = 120 * 1000;
-const API_KEY_LENGTH = 32;
 const DEFAULT_LIVE_POLLING_INTERVAL = 25 * 1000;
 const POLYLINE_SIMPLIFICATION = 0.000005; // simplify-js epsilon
 
 // https://developers.google.com/transit/gtfs/reference#routestxt
 const TRANSIT_TYPES = ["tram", "subway", "rail", "bus", "ferry"];
-const OCCUPANCY_STATUS = [
-    "EMPTY",
-    "MANY_SEATS_AVAILABLE",
-    "FEW_SEATS_AVAILABLE",
-    "STANDING_ROOM_ONLY",
-    "CRUSHED_STANDING_ROOM_ONLY",
-    "FULL",
-    "NOT_ACCEPTING_PASSENGERS",
-];
 
 class AucklandTransportData {
     private _uWSApp: TemplatedApp;
@@ -86,8 +76,8 @@ class AucklandTransportData {
         this._livePollingInterval = null;
         this._livePollingIntervalSetting = livePollingIntervalSetting;
 
-        // if the websocket hasn't recieved anything for two minutes then check if it is still working
-        this._webSocketHealthLastCheck = (new Date()).getTime();
+        // check websocket is working if it hasn't recieved anything for two minutes
+        this._webSocketHealthLastCheck = Date.now();
         this._webSocketMonitorInterval = setInterval(() => this.checkWebSocketHealth(), 1000);
 
         /* Processed data by short name
@@ -173,14 +163,15 @@ class AucklandTransportData {
             this._allVersions.set(v.version, v);
         }
 
-        // note1: AT does this weird thing where a version will end at midnight on a day, but the next one
-        //   technically doesn't kick in till the next day. (e.g. ends at 0am on Monday, starts at 0am Tuesday)
+        // note1: AT does this weird thing where a version will end at midnight
+        //   on a day, but the next one technically doesn't kick in till the
+        //   next day. (e.g. ends at 0am on Monday, starts at 0am Tuesday)
         //   -> workaround: add one day to the end time
         // note2: AT displays times as UTC but they are actually local (NZ) time
         //   -> workaround: completely remove the time and timezone (only use the date, as NZ time)
         // note3: Late buses (e.g. 1am, 2am, 3am) still run on the previous day's route
         //   -> workaround: allow multiple versions to be considered 'active' at once
-        // note4: AT removes routes that have expired, even when buses are still using them (see note3)
+        // note4: AT removes routes that have expired, even when buses are still using them (note3)
         //   -> workaround: store our own array, _allVersions, of the versions we see
         const now = spacetime.now();
         const filtered = [...this._allVersions.values()].filter(v => {
@@ -206,7 +197,7 @@ class AucklandTransportData {
     }
 
     removeOldVehicles() {
-        const now = (new Date()).getTime();
+        const now = Date.now();
         this._byShortName.forEach(processedRoute => {
             processedRoute.vehicles.forEach((processedVehicle, vehicleId) => {
                 // remove vehicles more than 2 mins old
@@ -267,7 +258,7 @@ class AucklandTransportData {
 
     async checkWebSocketHealth() {
         if (this._ws === null) return;
-        const now = (new Date()).getTime();
+        const now = Date.now();
         if (this._webSocketHealthLastCheck > now - WS_HEALTH_CHECK_INTERVAL) return;
         if (this._lastMessageTimestamp * 1000 > now - WS_HEALTHY_IF_MESSAGE_WITHIN) return;
         this._webSocketHealthLastCheck = now;
@@ -338,8 +329,9 @@ class AucklandTransportData {
 
         this._ws.on("error", (err: Error) => {
             // HTTP errors (only while connecting?)
-            // buggy AT server returns 503 (AKA retry cause it's only temporarily broken), and has been
-            // known to break badly and 502 (this is kinda perma-broken, wait a bit before reconnecting)
+            // buggy AT server returns 503 (AKA retry cause it's only
+            // temporarily broken), and has been known to break badly and
+            // 502 (this is kinda perma-broken, wait a bit before reconnecting)
             if (err.message === "Unexpected server response: 503") {
                 logger.warn(`WebSocket returned error 503, retrying in ${SLEEP_BEFORE_WS_RECONNECT_503}ms`);
                 this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_503);
@@ -369,7 +361,8 @@ class AucklandTransportData {
             }
 
             if (code === 1006) {
-                // abnormal closure, restart the websocket (error handler may have already set restartWebSocketTimeout)
+                // abnormal closure, restart the websocket
+                // (error handler may have already set restartWebSocketTimeout)
                 if (this._restartWebSocketTimeout === null) {
                     logger.warn(`WebSocket closed unexpectedly, restarting in ${SLEEP_BEFORE_WS_RECONNECT_GENERIC}ms`);
                     this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_GENERIC);
@@ -450,7 +443,7 @@ class AucklandTransportData {
                         .map(a => (this.query(`gtfs/shapes/shapeId/${a[0]}`) as Promise<ATShapePointRaw[]>))
                 );
                 // generate polyline for the longest shape (simplified so Google Maps doesn't die)
-                const shape = shapes.sort((a, b) => b.length - a.length)[0];
+                const [shape] = shapes.sort((a, b) => b.length - a.length);
                 const simplifiedShape = simplify(
                     shape.map(s => ({ x: s.shape_pt_lat, y: s.shape_pt_lon })), POLYLINE_SIMPLIFICATION, true
                 );
