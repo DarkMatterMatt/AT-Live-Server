@@ -1,4 +1,4 @@
-module.exports = {
+const config: Config = {
     port:   9001,
     useSSL: false,
     ssl:    {
@@ -35,3 +35,5 @@ module.exports = {
         // opts: {}
     },
 };
+
+export default config;

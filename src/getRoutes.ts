@@ -1,20 +1,18 @@
-/* eslint-disable func-names */
-const GetRoute = require("./GetRoute");
+import GetRoute from "./GetRoute";
 
-const routes = new Map();
+const routes = new Map<string, GetRoute>();
 
 routes.set("default", new GetRoute("default")
-    // executor must not be an arrow function in order to get the correct `this`
-    .setExecutor(function () {
-        return this.finish("error", {
+    .setExecutor((route) => {
+        return route.finish("error", {
             message: `Invalid route. Must be one of ${[...routes.keys()].join(", ")}.`,
         });
     }));
 
 routes.set("status", new GetRoute("status")
     .setCacheMaxAge(0)
-    .setExecutor(function ({ aucklandTransportData, activeWebSockets }) {
-        return this.finish("success", {
+    .setExecutor((route, { aucklandTransportData, activeWebSockets }) => {
+        return route.finish("success", {
             websocketUpdates:     aucklandTransportData.webSocketActive(),
             livePollingUpdates:   aucklandTransportData.livePollingActive(),
             lastMessageTimestamp: aucklandTransportData.lastMessageTimestamp(),
@@ -23,11 +21,12 @@ routes.set("status", new GetRoute("status")
     }));
 
 routes.set("routes", new GetRoute("routes")
-    .setExecutor(function ({ params, aucklandTransportData }) {
+    .setExecutor((route, { params, aucklandTransportData }) => {
         const shortNames = params.get("shortNames") && params.get("shortNames").split(",");
-        let fetch = params.get("fetch");
-        if (fetch) {
-            fetch = fetch.split(",");
+        const fetchRaw = params.get("fetch");
+        let fetch: string[];
+        if (fetchRaw) {
+            fetch = fetchRaw.split(",");
         }
         else {
             fetch = ["shortName", "longName", "longNames", "routeIds", "shapeIds", "vehicles", "type", "agencyId"];
@@ -39,11 +38,11 @@ routes.set("routes", new GetRoute("routes")
 
         // don't cache responses containing vehicles
         if (fetch.includes("vehicles")) {
-            this.setCacheMaxAge(0);
+            route.setCacheMaxAge(0);
         }
 
         const processedRoutes = aucklandTransportData.getRoutesByShortName();
-        const data = {};
+        const data: Record<string, any> = {};
         const correctCapitalization = [
             "shortName", "longName", "polylines", "type", "agencyId", "longNames", "routeIds", "shapeIds", "vehicles",
         ];
@@ -97,10 +96,10 @@ routes.set("routes", new GetRoute("routes")
             }
         }
 
-        return this.finish("success", {
+        return route.finish("success", {
             message: "See routes attached",
             routes:  data,
         });
     }));
 
-module.exports = routes;
+export default routes;

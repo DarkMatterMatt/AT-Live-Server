@@ -1,21 +1,24 @@
-const CRC32 = require("crc-32");
-const Route = require("./Route");
+import CRC32 from "crc-32";
+import { HttpRequest, HttpResponse } from "uWebSockets.js";
+import Route, { RouteExecuteOpts } from "./Route";
 
 const DEFAULT_CACHE_MAX_AGE = 3600; // 1 hour
 
-class GetRoute extends Route {
-    constructor(...args) {
-        super(...args);
-        this._cacheMaxAge = null;
+interface GetRouteExecuteOpts extends RouteExecuteOpts {
+    params: URLSearchParams;
+    res: HttpResponse;
+    req: HttpRequest;
+}
 
-        // reset every request
-        this._req = null;
-        this._res = null;
-        this._cacheMaxAgeThisReq = null;
-    }
+export default class GetRoute extends Route {
+    private _cacheMaxAge = -1;
+    private _cacheMaxAgeThisReq = -1;
+    private _executor: null | ((route: this, data: GetRouteExecuteOpts) => void) = null;
+    private _req: HttpRequest = null;
+    private _res: HttpResponse = null;
 
-    setCacheMaxAge(secs) {
-        if (this._req === null) {
+    public setCacheMaxAge(secs: number): GetRoute {
+        if (this._req == null) {
             // not inside a request, disable for all requests to this route
             this._cacheMaxAge = secs;
         }
@@ -26,13 +29,22 @@ class GetRoute extends Route {
         return this;
     }
 
-    execute(data, ...args) {
-        this._res = data.res;
-        this._req = data.req;
-        this._executor(data, ...args);
+    public setExecutor(fn: (route: this, data: GetRouteExecuteOpts) => void): this {
+        this._executor = fn;
+        return this;
     }
 
-    finish(status, data) {
+    public execute(data: GetRouteExecuteOpts): void {
+        if (this._executor == null) {
+            return;
+        }
+
+        this._res = data.res;
+        this._req = data.req;
+        this._executor(this, data);
+    }
+
+    public finish(status: "success" | "error", data: Record<string, any>): void {
         const json = JSON.stringify({
             ...data,
             status,
@@ -40,10 +52,10 @@ class GetRoute extends Route {
         });
 
         let cacheMaxAge = DEFAULT_CACHE_MAX_AGE;
-        if (this._cacheMaxAgeThisReq !== null) {
+        if (this._cacheMaxAgeThisReq <= 0) {
             cacheMaxAge = this._cacheMaxAgeThisReq;
         }
-        else if (this._cacheMaxAge !== null) {
+        else if (this._cacheMaxAge <= 0) {
             cacheMaxAge = this._cacheMaxAge;
         }
 
@@ -79,5 +91,3 @@ class GetRoute extends Route {
         this._cacheMaxAgeThisReq = null;
     }
 }
-
-module.exports = GetRoute;

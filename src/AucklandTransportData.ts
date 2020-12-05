@@ -1,10 +1,12 @@
-const fetch = require("node-fetch");
-const pLimit = require("p-limit");
-const simplify = require("simplify-js");
-const spacetime = require("spacetime");
-const WebSocket = require("ws");
-const Cache = require("./Cache");
-const logger = require("./logger");
+import fetch from "node-fetch";
+import pLimit, { Limit } from "p-limit";
+import simplify from "simplify-js";
+import spacetime from "spacetime";
+import { TemplatedApp } from "uWebSockets.js";
+import WebSocket from "ws";
+import { convertATVehicleRawToATVehicle, isATVehicleRaw, isATVehicleRawWS } from "./aucklandTransport";
+import Cache from "./Cache";
+import logger from "./logger";
 
 const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
 const WS_CODE_CLOSE_NO_RECONNECT = 4001;
@@ -33,6 +35,26 @@ const OCCUPANCY_STATUS = [
 ];
 
 class AucklandTransportData {
+    private _uWSApp: TemplatedApp;
+    private _key: string;
+    private _baseUrl: string;
+    private _webSocketUrl: string;
+    private _allVersions: Map<string, ATVersion>;
+    private _currentVersions: string[];
+    private _cache: Cache;
+    private _pLimit: Limit;
+    private _ws: WebSocket;
+    private _lastMessageTimestamp: number;
+    private _restartWebSocketTimeout: null | ReturnType<typeof setTimeout>;
+    private _livePollingInterval: null | ReturnType<typeof setInterval>;
+    private _livePollingIntervalSetting: number;
+    private _webSocketHealthLastCheck: number;
+    private _webSocketMonitorInterval: ReturnType<typeof setInterval>;
+    private _byShortName: Map<string, ATRoute>;
+    private _byRouteId: Map<string, ATRoute>;
+    private _autoUpdateInterval: null | ReturnType<typeof setInterval>;
+    private _removeOldVehiclesInterval: null | ReturnType<typeof setInterval>;
+
     constructor({
         key,
         baseUrl,
@@ -41,7 +63,7 @@ class AucklandTransportData {
         compressCache,
         maxParallelRequests = 10,
         livePollingInterval: livePollingIntervalSetting = DEFAULT_LIVE_POLLING_INTERVAL,
-    }, uWSApp) {
+    }: AucklandTransportDataOpts, uWSApp: TemplatedApp) {
         if (!key) throw new Error("AucklandTransportData: Missing API key");
         if (!baseUrl) throw new Error("AucklandTransportData: Missing API URL");
         if (!webSocketUrl) throw new Error("AucklandTransportData: Missing WebSocket URL");
@@ -102,11 +124,11 @@ class AucklandTransportData {
         return this._byShortName;
     }
 
-    getRouteByShortName(shortName) {
+    getRouteByShortName(shortName: string) {
         return this._byShortName.get(shortName);
     }
 
-    hasRouteByShortName(shortName) {
+    hasRouteByShortName(shortName: string) {
         return this._byShortName.get(shortName);
     }
 
@@ -122,8 +144,8 @@ class AucklandTransportData {
         return this._lastMessageTimestamp;
     }
 
-    async query(url, noCache) {
-        if (!noCache) {
+    async query(url: string, noCache?: "noCache") {
+        if (noCache === "noCache") {
             const cachedData = this._cache.load(url);
             if (cachedData !== null) {
                 return cachedData;
@@ -139,14 +161,15 @@ class AucklandTransportData {
             throw new Error(`Failed fetching ${url}: ${result.error || result.message}`);
         }
 
-        if (!noCache) {
+        if (noCache !== "noCache") {
             this._cache.store(url, result.response);
         }
         return result.response;
     }
 
     async queryLatestVersion() {
-        for (const v of await this.query("gtfs/versions", "noCache")) {
+        const response = (await this.query("gtfs/versions", "noCache")) as ATVersionRaw[];
+        for (const v of response) {
             this._allVersions.set(v.version, v);
         }
 
@@ -174,25 +197,12 @@ class AucklandTransportData {
         return this._currentVersions;
     }
 
-    isCurrentVersion(id) {
+    isCurrentVersion(id: string) {
         // return true if id ends with any current version
         if (this._currentVersions.length === 0) {
             return true;
         }
         return this._currentVersions.some(v => id.endsWith(v));
-    }
-
-    async validateApiKey() {
-        if (!this._apiKey || this._apiKey.length !== API_KEY_LENGTH) {
-            return false;
-        }
-        try {
-            await this.getLatestVersion();
-            return true;
-        }
-        catch (err) {
-            return false;
-        }
     }
 
     removeOldVehicles() {
@@ -207,48 +217,25 @@ class AucklandTransportData {
         });
     }
 
-    loadVehiclePosition(data) {
-        const { position, timestamp, trip, vehicle } = data;
-        if (!position || !timestamp || !trip || !vehicle) return false;
-
-        const occupancyStatus = data.occupancyStatus || OCCUPANCY_STATUS[data.occupancy_status] || null;
-
-        const { id } = vehicle;
-        if (!id) return false;
-
-        const routeId = trip.routeId || trip.route_id;
-        const directionId = trip.directionId !== undefined ? trip.directionId : trip.direction_id;
-        if (!routeId || directionId === undefined) return false;
-
-        const [lat, lng] = [position.latitude, position.longitude];
-        if (!lat || !lng) return false;
+    loadVehiclePosition(data: ATVehicleRaw | ATVehicleRawWS) {
+        const vehicle = convertATVehicleRawToATVehicle(data);
 
         // ignore vehicles more than 2 minutes old
-        const lastUpdatedUnix = Number.parseInt(timestamp, 10);
-        if (lastUpdatedUnix * 1000 < (new Date()).getTime() - OLD_VEHICLE_THRESHOLD) return false;
+        if (vehicle.lastUpdatedUnix * 1000 < Date.now() - OLD_VEHICLE_THRESHOLD) return false;
 
-        const route = this._byRouteId.get(routeId);
+        const route = this._byRouteId.get(vehicle.routeId);
         if (route === undefined) {
             // usually because the vehicle is operating off an old route version
-            logger.warn("Skipping vehicle update because its parent route does not exist!",
-                routeId, { position, timestamp, trip, vehicle });
+            logger.warn("Skipping vehicle update because its parent route does not exist!", { vehicle });
             return false;
         }
 
-        const processedVehicle = {
-            position:  { lat, lng },
-            vehicleId: id,
-            lastUpdatedUnix,
-            directionId,
-            occupancyStatus,
-        };
+        const old = route.vehicles.get(vehicle.vehicleId);
 
-        const old = route.vehicles.get(id);
-
-        if (old === undefined || old.lastUpdatedUnix !== lastUpdatedUnix) {
-            route.vehicles.set(id, processedVehicle);
+        if (old === undefined || old.lastUpdatedUnix !== vehicle.lastUpdatedUnix) {
+            route.vehicles.set(vehicle.vehicleId, vehicle);
             this._uWSApp.publish(route.shortName, JSON.stringify({
-                ...processedVehicle,
+                ...vehicle,
                 status:    "success",
                 route:     "live/vehicle", // websocket JSON route, not the vehicle's transit route
                 shortName: route.shortName,
@@ -257,10 +244,25 @@ class AucklandTransportData {
         return true;
     }
 
-    async loadAllVehiclePositions() {
-        const response = await this.query("public/realtime/vehiclelocations", "noCache");
+    async loadAllVehiclePositions(): Promise<number> {
+        const response: {
+            entity: {
+                id: string;
+                is_deleted: boolean;
+                vehicle: ATVehicleRaw;
+            }[];
+        } = await this.query("public/realtime/vehiclelocations", "noCache");
         // return number of new vehicle updates
-        return response.entity.reduce((a, b) => a + this.loadVehiclePosition(b.vehicle), 0);
+        let numVehiclesUpdated = 0;
+        for (const vehicle of response.entity) {
+            if (isATVehicleRaw(vehicle)) {
+                const updateHappened = this.loadVehiclePosition(vehicle);
+                if (updateHappened) {
+                    numVehiclesUpdated += 1;
+                }
+            }
+        }
+        return numVehiclesUpdated;
     }
 
     async checkWebSocketHealth() {
@@ -277,7 +279,7 @@ class AucklandTransportData {
         }
     }
 
-    restartWebSocketIn(ms) {
+    restartWebSocketIn(ms: number) {
         if (this._restartWebSocketTimeout === null) {
             this._restartWebSocketTimeout = setTimeout(() => this.startWebSocket(), ms);
         }
@@ -317,7 +319,7 @@ class AucklandTransportData {
             }));
         });
 
-        this._ws.on("message", data_ => {
+        this._ws.on("message", (data_: string) => {
             // websocket is working, stop polling for data
             clearInterval(this._livePollingInterval);
             this._livePollingInterval = null;
@@ -329,10 +331,12 @@ class AucklandTransportData {
                 this._lastMessageTimestamp = data.timestamp;
             }
 
-            this.loadVehiclePosition(data);
+            if (isATVehicleRawWS(data)) {
+                this.loadVehiclePosition(data);
+            }
         });
 
-        this._ws.on("error", err => {
+        this._ws.on("error", (err: Error) => {
             // HTTP errors (only while connecting?)
             // buggy AT server returns 503 (AKA retry cause it's only temporarily broken), and has been
             // known to break badly and 502 (this is kinda perma-broken, wait a bit before reconnecting)
@@ -349,7 +353,7 @@ class AucklandTransportData {
             throw err;
         });
 
-        this._ws.on("close", code => {
+        this._ws.on("close", (code: number) => {
             this._ws = null;
 
             if (code === WS_CODE_CLOSE_PLANNED_SHUTDOWN) {
@@ -373,7 +377,7 @@ class AucklandTransportData {
                 return;
             }
 
-            throw new Error("Unknown close code", code);
+            throw new Error(`Unknown close code: ${code}`);
         });
     }
 
@@ -385,7 +389,7 @@ class AucklandTransportData {
 
     async load() {
         // routes are required to look up short names
-        const routes = await this.query("gtfs/routes", "noCache");
+        const routes = (await this.query("gtfs/routes", "noCache")) as ATRouteRaw[];
         const filteredRoutes = routes.filter(r => this.isCurrentVersion(r.route_id));
         for (const route of filteredRoutes) {
             const shortName = route.route_short_name;
@@ -398,7 +402,7 @@ class AucklandTransportData {
                     longName:  "",
                     polylines: [[], []],
                     vehicles:  new Map(),
-                    type:      TRANSIT_TYPES[route.route_type],
+                    type:      TRANSIT_TYPES[route.route_type] as TransitType,
                     agencyId:  route.agency_id,
                 });
             }
@@ -409,7 +413,7 @@ class AucklandTransportData {
         }
 
         // trips are required for fetching shapes
-        const trips = await this.query("gtfs/trips", "noCache");
+        const trips = (await this.query("gtfs/trips", "noCache")) as ATTripRaw[];
         const filteredTrips = trips.filter(t => this.isCurrentVersion(t.trip_id));
         for (const trip of filteredTrips) {
             const shapesMap = this._byRouteId.get(trip.route_id).shapeIds[trip.direction_id];
@@ -443,7 +447,7 @@ class AucklandTransportData {
                 const highestCount = Math.max(...shapeIds.map(a => a[1]));
                 const shapes = await Promise.all(
                     shapeIds.filter(a => a[1] > highestCount * 0.75)
-                        .map(a => this.query(`gtfs/shapes/shapeId/${a[0]}`))
+                        .map(a => (this.query(`gtfs/shapes/shapeId/${a[0]}`) as Promise<ATShapePointRaw[]>))
                 );
                 // generate polyline for the longest shape (simplified so Google Maps doesn't die)
                 const shape = shapes.sort((a, b) => b.length - a.length)[0];
@@ -460,14 +464,14 @@ class AucklandTransportData {
         await this.loadAllVehiclePositions();
     }
 
-    async lookForUpdates(forceLoad) {
+    async lookForUpdates(forceLoad?: "forceLoad") {
         const cachedVersion = this._cache.load("latest-version");
         await this.queryLatestVersion();
         if (this._currentVersions.length && JSON.stringify(cachedVersion) !== JSON.stringify(this._currentVersions)) {
             this._cache.store("latest-version", this._currentVersions);
             await this.load();
         }
-        else if (forceLoad) {
+        else if (forceLoad === "forceLoad") {
             await this.load();
         }
     }
@@ -485,4 +489,4 @@ class AucklandTransportData {
     }
 }
 
-module.exports = AucklandTransportData;
+export default AucklandTransportData;

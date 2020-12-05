@@ -18,8 +18,18 @@
         "outDir": "dist",
         "baseUrl": "./",
         "paths": {
-            "*" : ["src/types/*"]
-        }
+            "~/*": [
+                "./src/*"
+            ],
+            "*": [
+                "node_modules/*",
+                "src/types/*"
+            ]
+        },
+        "typeRoots": [
+            "node_modules/@types",
+            "src/types"
+        ]
     },
     "include": [
         "src"
