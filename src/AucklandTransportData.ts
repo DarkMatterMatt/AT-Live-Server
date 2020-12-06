@@ -135,7 +135,7 @@ class AucklandTransportData {
     }
 
     async query(url: string, noCache?: "noCache") {
-        if (noCache === "noCache") {
+        if (noCache !== "noCache") {
             const cachedData = this._cache.load(url);
             if (cachedData !== null) {
                 return cachedData;
