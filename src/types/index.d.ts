@@ -66,3 +66,13 @@ interface ATVersion {
 }
 
 type TransitType = "rail" | "bus" | "ferry";
+
+interface Point {
+    x: number;
+    y: number;
+}
+
+interface MapProjection {
+    fromPointToLatLng(pixel: Point, nowrap?: boolean): LatLng;
+    fromLatLngToPoint(latLng: LatLng): Point;
+}
