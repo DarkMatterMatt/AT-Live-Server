@@ -26,7 +26,7 @@ class MercatorProjection implements MapProjection {
     }
 
     /**
-     * Convert a pixel point into coordinates
+     * Convert a pixel point into coordinates.
      * @param point pixel point to convert
      * @param wrapLng whether to clamp the longitude into -180 <= lng < 180
      */
@@ -45,7 +45,7 @@ class MercatorProjection implements MapProjection {
     }
 
     /**
-     * Convert coordinates into a pixel point
+     * Convert coordinates into a pixel point.
      * @param latLng coordinates to convert
      */
     public fromLatLngToPoint(latLng: LatLng): Point {
@@ -58,6 +58,14 @@ class MercatorProjection implements MapProjection {
         const y = this.pixelOrigin.y + (0.5 * Math.log((1 + siny) / (1 - siny)) * -this.pixelsPerLonRadian);
 
         return { x, y };
+    }
+
+    /**
+     * Magic math to calculate the number of meters per pixel.
+     * @param lat Latitude that this conversion is valid at
+     */
+    public getMetersPerPixel(lat: number): number {
+        return 156543.03392 * Math.cos(degreesToRadians(lat));
     }
 }
 
