@@ -13,3 +13,17 @@ export function clamp(val: number, min: number | null, max: number | null): numb
     }
     return val;
 }
+
+/**
+ * Convert angle in degrees to radians.
+ */
+export function degreesToRadians(deg: number): number {
+    return deg * Math.PI / 180;
+}
+
+/**
+ * Convert angle in radians to degrees.
+ */
+export function radiansToDegrees(rad: number): number {
+    return 180 * rad / Math.PI;
+}
