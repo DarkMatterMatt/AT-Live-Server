@@ -27,3 +27,11 @@ export function degreesToRadians(deg: number): number {
 export function radiansToDegrees(rad: number): number {
     return 180 * rad / Math.PI;
 }
+
+/**
+ * Round number to specified number of decimal places.
+ */
+export function round(num: number, decimalPlaces = 0): number {
+    const multiplier = 10 ** decimalPlaces;
+    return Math.round((num + Number.EPSILON) * multiplier) / multiplier;
+}

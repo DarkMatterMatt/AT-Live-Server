@@ -67,6 +67,29 @@ class MercatorProjection implements MapProjection {
     public getMetersPerPixel(lat: number): number {
         return 156543.03392 * Math.cos(degreesToRadians(lat));
     }
+
+    /**
+     * Get distance between pixel points located at a specific latitude.
+     * @param lat Latitude that this conversion is valid at
+     * @returns distance in meters
+     */
+    public getDistBetweenPoints(p1: Point, p2: Point, lat: number): number {
+        const metersPerPixel = this.getMetersPerPixel(lat);
+        const deltaX = p2.x - p1.x;
+        const deltaY = p2.y - p1.y;
+        return Math.sqrt((deltaX * deltaX) + (deltaY * deltaY)) * metersPerPixel;
+    }
+
+    /**
+     * Get distance between coordinate points.
+     * @returns distance in meters
+     */
+    public getDistBetweenLatLngs(l1: LatLng, l2: LatLng): number {
+        const avgLat = (l1.lat + l2.lat) / 2;
+        const p1 = this.fromLatLngToPoint(l1);
+        const p2 = this.fromLatLngToPoint(l2);
+        return this.getDistBetweenPoints(p1, p2, avgLat);
+    }
 }
 
 export const mercatorProjection = new MercatorProjection(256);

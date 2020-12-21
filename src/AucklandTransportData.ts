@@ -6,7 +6,9 @@ import { TemplatedApp } from "uWebSockets.js";
 import WebSocket from "ws";
 import { convertATVehicleRawToATVehicle, isATVehicleRaw, isATVehicleRawWS } from "./aucklandTransport";
 import Cache from "./Cache";
+import { round } from "~/helpers";
 import logger from "./logger";
+import { mercatorProjection } from "~/MercatorProjection";
 
 const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
 const WS_CODE_CLOSE_NO_RECONNECT = 4001;
@@ -447,7 +449,16 @@ class AucklandTransportData {
                 const simplifiedShape = simplify(
                     shape.map(s => ({ x: s.shape_pt_lat, y: s.shape_pt_lon })), POLYLINE_SIMPLIFICATION, true
                 );
-                processedRoute.polylines[i] = simplifiedShape.map(s => ({ lat: s.x, lng: s.y }));
+
+                const latLngs = simplifiedShape.map(s => ({ lat: s.x, lng: s.y }));
+                processedRoute.polylines[i] = new Array(latLngs.length);
+
+                let dist = 0;
+                processedRoute.polylines[i][0] = { ...latLngs[0], dist };
+                for (let j = 1; j < latLngs.length; j++) {
+                    dist += mercatorProjection.getDistBetweenLatLngs(latLngs[j - 1], latLngs[j]);
+                    processedRoute.polylines[i][j] = { ...latLngs[j], dist: round(dist, 2) };
+                }
 
                 // sort shapeIds for consistency in the API
                 processedRoute.shapeIds[i] = new Map(shapeIds.sort((a, b) => a[0].localeCompare(b[0])));
