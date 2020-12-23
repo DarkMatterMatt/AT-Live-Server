@@ -50,8 +50,8 @@ export function convertPointsToLatLngs(points: Point[]): LatLng[] {
     return points.map(p => ({ lat: p.x, lng: p.y }));
 }
 
-export function convertLatLngsToPolylinePoints(points: LatLng[]): PolylinePoint[] {
-    const output: PolylinePoint[] = new Array(points.length);
+export function convertLatLngsToPolylinePoints(points: LatLng[]): PolylineLatLng[] {
+    const output: PolylineLatLng[] = new Array(points.length);
     output[0] = { lat: points[0].lat, lng: points[0].lng, dist: 0 };
 
     let dist = 0;
@@ -64,6 +64,6 @@ export function convertLatLngsToPolylinePoints(points: LatLng[]): PolylinePoint[
     return output;
 }
 
-export function convertPolylinePointsToPoints(points: PolylinePoint[]): Point[] {
+export function convertPolylinePointsToPoints(points: PolylineLatLng[]): Point[] {
     return points.map(p => ({ x: p.lat, y: p.lng }));
 }
