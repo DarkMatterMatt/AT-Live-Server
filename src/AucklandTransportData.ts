@@ -7,6 +7,7 @@ import { TemplatedApp } from "uWebSockets.js";
 import WebSocket from "ws";
 import { convertATVehicleRawToATVehicle, convertATShapePointRawToLatLngs, convertLatLngsToPolylinePoints, convertPointsToLatLngs, convertPolylinePointsToPoints, isATVehicleRaw, isATVehicleRawWS } from "~/aucklandTransport";
 import Cache from "./Cache";
+import { map } from "./helpers";
 import logger from "./logger";
 
 const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
@@ -440,9 +441,8 @@ class AucklandTransportData {
                 }
                 // fetch shapes for the most common routes
                 const shapeIds = [...processedRoute.shapeIds[i]];
-                const shapes = await Promise.all(
-                    shapeIds.map(a => (this.query(`gtfs/shapes/shapeId/${a[0]}`) as Promise<ATShapePointRaw[]>))
-                );
+                const shapes = await map(shapeIds,
+                    a => this.query(`gtfs/shapes/shapeId/${a[0]}`) as Promise<ATShapePointRaw[]>);
                 const polylines = shapes
                     .map(p => convertATShapePointRawToLatLngs(p))
                     .map(l => convertLatLngsToPolylinePoints(l));
