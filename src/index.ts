@@ -6,6 +6,7 @@ import getRoutes from "./getRoutes";
 import logger from "./logger";
 import { URLSearchParams } from "url";
 import { TextDecoder } from "util";
+import { WSOutput } from "~/output";
 
 const WS_CODE_CLOSE_GOING_AWAY = 1001;
 
@@ -19,8 +20,10 @@ process.on("uncaughtException", err => {
 
 const app = C.useSSL ? uWS.SSLApp(C.ssl) : uWS.App();
 
+const output = WSOutput.createInstance(app);
+
 /* Subscribe / publish by route short names */
-const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app);
+const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, output);
 
 (async () => {
     const activeWebSockets = new Set<WebSocket>();

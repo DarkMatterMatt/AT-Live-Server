@@ -3,9 +3,8 @@ import pLimit, { Limit } from "p-limit";
 import { performance } from "perf_hooks";
 import simplify from "simplify-js";
 import spacetime from "spacetime";
-import { TemplatedApp } from "uWebSockets.js";
 import WebSocket from "ws";
-import { convertATVehicleRawToATVehicle, convertATShapePointRawToLatLngs, convertLatLngsToPolylinePoints, convertPointsToLatLngs, convertPolylinePointsToPoints, isATVehicleRaw, isATVehicleRawWS } from "~/aucklandTransport";
+import { convertATShapePointRawToLatLngs, convertATVehicleRawToATVehicle, convertLatLngsToPolylinePoints, convertPointsToLatLngs, convertPolylinePointsToPoints, isATVehicleRaw, isATVehicleRawWS } from "~/aucklandTransport";
 import Cache from "./Cache";
 import { map } from "./helpers";
 import logger from "./logger";
@@ -27,7 +26,7 @@ const POLYLINE_SIMPLIFICATION = 0.000005; // simplify-js epsilon
 const TRANSIT_TYPES = ["tram", "subway", "rail", "bus", "ferry"];
 
 class AucklandTransportData {
-    private _uWSApp: TemplatedApp;
+    private output: Output;
     private _key: string;
     private _baseUrl: string;
     private _webSocketUrl: string;
@@ -55,12 +54,12 @@ class AucklandTransportData {
         compressCache,
         maxParallelRequests = 10,
         livePollingInterval: livePollingIntervalSetting = DEFAULT_LIVE_POLLING_INTERVAL,
-    }: AucklandTransportDataOpts, uWSApp: TemplatedApp) {
+    }: AucklandTransportDataOpts, output: Output) {
         if (!key) throw new Error("AucklandTransportData: Missing API key");
         if (!baseUrl) throw new Error("AucklandTransportData: Missing API URL");
         if (!webSocketUrl) throw new Error("AucklandTransportData: Missing WebSocket URL");
 
-        this._uWSApp = uWSApp;
+        this.output = output;
         this._key = key;
         this._baseUrl = baseUrl;
         this._webSocketUrl = webSocketUrl;
@@ -227,12 +226,16 @@ class AucklandTransportData {
 
         if (old === undefined || old.lastUpdatedUnix !== vehicle.lastUpdatedUnix) {
             route.vehicles.set(vehicle.vehicleId, vehicle);
-            this._uWSApp.publish(route.shortName, JSON.stringify({
+            this.output.publish(route.shortName, {
                 ...vehicle,
                 status:    "success",
                 route:     "live/vehicle", // websocket JSON route, not the vehicle's transit route
                 shortName: route.shortName,
-            }));
+                lastUpdated: vehicle.lastUpdatedUnix * 1000,
+                // TODO: snap vehicle position to route
+                snapPosition: vehicle.position,
+                snapDeviation: 0,
+            });
         }
         return true;
     }
