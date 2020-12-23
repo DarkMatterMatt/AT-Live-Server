@@ -1,5 +1,6 @@
+import { round } from "~/helpers";
+import { mercatorProjection } from "~/MercatorProjection";
 import { isATVehicleRaw } from "./typeChecks";
-
 
 // https://developers.google.com/transit/gtfs/reference#routestxt
 const TRANSIT_TYPES = ["tram", "subway", "rail", "bus", "ferry"];
@@ -39,4 +40,30 @@ export function convertATVehicleRawToATVehicle(data: ATVehicleRaw | ATVehicleRaw
         routeId: data.trip.routeId,
         vehicleId: data.vehicle.id,
     };
+}
+
+export function convertATShapePointRawToLatLngs(points: ATShapePointRaw[]): LatLng[] {
+    return points.map(p => ({ lat: p.shape_pt_lat, lng: p.shape_pt_lon }));
+}
+
+export function convertPointsToLatLngs(points: Point[]): LatLng[] {
+    return points.map(p => ({ lat: p.x, lng: p.y }));
+}
+
+export function convertLatLngsToPolylinePoints(points: LatLng[]): PolylinePoint[] {
+    const output: PolylinePoint[] = new Array(points.length);
+    output[0] = { lat: points[0].lat, lng: points[0].lng, dist: 0 };
+
+    let dist = 0;
+    for (let i = 1; i < points.length; i++) {
+        dist += mercatorProjection.getDistBetweenLatLngs(points[i - 1], points[i]);
+
+        const { lat, lng } = points[i];
+        output[i] = { lat, lng, dist: round(dist, 2) };
+    }
+    return output;
+}
+
+export function convertPolylinePointsToPoints(points: PolylinePoint[]): Point[] {
+    return points.map(p => ({ x: p.lat, y: p.lng }));
 }

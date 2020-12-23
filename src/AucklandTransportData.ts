@@ -1,14 +1,13 @@
 import fetch from "node-fetch";
 import pLimit, { Limit } from "p-limit";
+import { performance } from "perf_hooks";
 import simplify from "simplify-js";
 import spacetime from "spacetime";
 import { TemplatedApp } from "uWebSockets.js";
 import WebSocket from "ws";
-import { convertATVehicleRawToATVehicle, isATVehicleRaw, isATVehicleRawWS } from "./aucklandTransport";
+import { convertATVehicleRawToATVehicle, convertATShapePointRawToLatLngs, convertLatLngsToPolylinePoints, convertPointsToLatLngs, convertPolylinePointsToPoints, isATVehicleRaw, isATVehicleRawWS } from "~/aucklandTransport";
 import Cache from "./Cache";
-import { round } from "~/helpers";
 import logger from "./logger";
-import { mercatorProjection } from "~/MercatorProjection";
 
 const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
 const WS_CODE_CLOSE_NO_RECONNECT = 4001;
@@ -383,6 +382,8 @@ class AucklandTransportData {
     }
 
     async load() {
+        const startTime = performance.now();
+
         // routes are required to look up short names
         const routes = (await this.query("gtfs/routes", "noCache")) as ATRouteRaw[];
         const filteredRoutes = routes.filter(r => this.isCurrentVersion(r.route_id));
@@ -439,26 +440,19 @@ class AucklandTransportData {
                 }
                 // fetch shapes for the most common routes
                 const shapeIds = [...processedRoute.shapeIds[i]];
-                const highestCount = Math.max(...shapeIds.map(a => a[1]));
                 const shapes = await Promise.all(
-                    shapeIds.filter(a => a[1] > highestCount * 0.75)
-                        .map(a => (this.query(`gtfs/shapes/shapeId/${a[0]}`) as Promise<ATShapePointRaw[]>))
+                    shapeIds.map(a => (this.query(`gtfs/shapes/shapeId/${a[0]}`) as Promise<ATShapePointRaw[]>))
                 );
-                // generate polyline for the longest shape (simplified so Google Maps doesn't die)
-                const [shape] = shapes.sort((a, b) => b.length - a.length);
+                const polylines = shapes
+                    .map(p => convertATShapePointRawToLatLngs(p))
+                    .map(l => convertLatLngsToPolylinePoints(l));
+                // we'll use the longest shape (simplified so Google Maps doesn't die)
+                const [polyline] = polylines.sort((a, b) => b[b.length - 1].dist - a[a.length - 1].dist);
                 const simplifiedShape = simplify(
-                    shape.map(s => ({ x: s.shape_pt_lat, y: s.shape_pt_lon })), POLYLINE_SIMPLIFICATION, true
+                    convertPolylinePointsToPoints(polyline), POLYLINE_SIMPLIFICATION, true
                 );
 
-                const latLngs = simplifiedShape.map(s => ({ lat: s.x, lng: s.y }));
-                processedRoute.polylines[i] = new Array(latLngs.length);
-
-                let dist = 0;
-                processedRoute.polylines[i][0] = { ...latLngs[0], dist };
-                for (let j = 1; j < latLngs.length; j++) {
-                    dist += mercatorProjection.getDistBetweenLatLngs(latLngs[j - 1], latLngs[j]);
-                    processedRoute.polylines[i][j] = { ...latLngs[j], dist: round(dist, 2) };
-                }
+                processedRoute.polylines[i] = convertLatLngsToPolylinePoints(convertPointsToLatLngs(simplifiedShape));
 
                 // sort shapeIds for consistency in the API
                 processedRoute.shapeIds[i] = new Map(shapeIds.sort((a, b) => a[0].localeCompare(b[0])));
@@ -466,6 +460,8 @@ class AucklandTransportData {
         }));
 
         await this.loadAllVehiclePositions();
+
+        logger.debug("load", "performance (ms)", performance.now() - startTime);
     }
 
     async lookForUpdates(forceLoad?: "forceLoad") {
