@@ -3,8 +3,7 @@ import pLimit, { Limit } from "p-limit";
 import { performance } from "perf_hooks";
 import simplify from "simplify-js";
 import spacetime from "spacetime";
-import WebSocket from "ws";
-import { convertATShapePointRawToLatLngs, convertATVehicleRawToATVehicle, convertLatLngsToPolylinePoints, convertPointsToLatLngs, convertPolylinePointsToPoints, isATVehicleRaw, isATVehicleRawWS } from "~/aucklandTransport";
+import { ATWebSocket, convertATShapePointRawToLatLngs, convertATVehicleRawToATVehicle, convertLatLngsToPolylinePoints, convertPointsToLatLngs, convertPolylinePointsToPoints, isATVehicleRaw } from "~/aucklandTransport";
 import Cache from "./Cache";
 import { map } from "./helpers";
 import logger from "./logger";
@@ -34,7 +33,7 @@ class AucklandTransportData {
     private _currentVersions: string[];
     private _cache: Cache;
     private _pLimit: Limit;
-    private _ws: WebSocket;
+    private ws: ATWebSocket;
     private _lastMessageTimestamp: number;
     private _restartWebSocketTimeout: null | ReturnType<typeof setTimeout>;
     private _livePollingInterval: null | ReturnType<typeof setInterval>;
@@ -67,7 +66,6 @@ class AucklandTransportData {
         this._currentVersions = [];
         this._cache = new Cache("ATCache", maxCacheSizeInBytes, compressCache);
         this._pLimit = pLimit(maxParallelRequests);
-        this._ws = null;
         this._lastMessageTimestamp = 0;
 
         // when the websocket breaks we'll try reconnect
@@ -76,10 +74,6 @@ class AucklandTransportData {
         // websocket is buggy, poll manually every LIVE_POLLING_INTERVAL if it isn't working
         this._livePollingInterval = null;
         this._livePollingIntervalSetting = livePollingIntervalSetting;
-
-        // check websocket is working if it hasn't recieved anything for two minutes
-        this._webSocketHealthLastCheck = Date.now();
-        this._webSocketMonitorInterval = setInterval(() => this.checkWebSocketHealth(), 1000);
 
         /* Processed data by short name
             {
@@ -124,7 +118,7 @@ class AucklandTransportData {
     }
 
     webSocketActive() {
-        return this._ws !== null;
+        return this.ws.isActive();
     }
 
     livePollingActive() {
@@ -209,9 +203,7 @@ class AucklandTransportData {
         });
     }
 
-    loadVehiclePosition(data: ATVehicleRaw | ATVehicleRawWS) {
-        const vehicle = convertATVehicleRawToATVehicle(data);
-
+    loadVehiclePosition(vehicle: ATVehicle) {
         // ignore vehicles more than 2 minutes old
         if (vehicle.lastUpdatedUnix * 1000 < Date.now() - OLD_VEHICLE_THRESHOLD) return false;
 
@@ -228,8 +220,8 @@ class AucklandTransportData {
             route.vehicles.set(vehicle.vehicleId, vehicle);
             this.output.publish(route.shortName, {
                 ...vehicle,
-                status:    "success",
-                route:     "live/vehicle", // websocket JSON route, not the vehicle's transit route
+                status: "success",
+                route: "live/vehicle", // websocket JSON route, not the vehicle's transit route
                 shortName: route.shortName,
                 lastUpdated: vehicle.lastUpdatedUnix * 1000,
                 // TODO: snap vehicle position to route
@@ -252,7 +244,7 @@ class AucklandTransportData {
         let numVehiclesUpdated = 0;
         for (const vehicle of response.entity) {
             if (isATVehicleRaw(vehicle)) {
-                const updateHappened = this.loadVehiclePosition(vehicle);
+                const updateHappened = this.loadVehiclePosition(convertATVehicleRawToATVehicle(vehicle));
                 if (updateHappened) {
                     numVehiclesUpdated += 1;
                 }
@@ -261,128 +253,28 @@ class AucklandTransportData {
         return numVehiclesUpdated;
     }
 
-    async checkWebSocketHealth() {
-        if (this._ws === null) return;
-        const now = Date.now();
-        if (this._webSocketHealthLastCheck > now - WS_HEALTH_CHECK_INTERVAL) return;
-        if (this._lastMessageTimestamp * 1000 > now - WS_HEALTHY_IF_MESSAGE_WITHIN) return;
-        this._webSocketHealthLastCheck = now;
-
-        // check if there are new vehicles that the websocket didn't know about
-        if (await this.loadAllVehiclePositions() > 0) {
-            logger.warn("WebSocket wasn't recieving vehicle updates, force restarting it now");
-            this.forceRestartWebSocket();
-        }
-    }
-
-    restartWebSocketIn(ms: number) {
-        if (this._restartWebSocketTimeout === null) {
-            this._restartWebSocketTimeout = setTimeout(() => this.startWebSocket(), ms);
-        }
-    }
-
-    forceRestartWebSocket() {
-        if (this._ws !== null && this._ws.readyState === this._ws.OPEN) {
-            this._ws.close(WS_CODE_CLOSE_NO_RECONNECT);
-        }
-        this.restartWebSocketIn(100);
-    }
-
     startWebSocket() {
-        // shouldn't need to clear it, as this function should be the timeout's callback
-        clearTimeout(this._restartWebSocketTimeout);
-        this._restartWebSocketTimeout = null;
-
-        if (this._livePollingInterval === null) {
-            this._livePollingInterval = setInterval(
-                () => this.loadAllVehiclePositions(),
-                this._livePollingIntervalSetting
-            );
-        }
-
-        this._ws = new WebSocket(this._webSocketUrl + this._key);
-        this._ws.on("open", () => {
-            this._ws.send(JSON.stringify({
-                // appears to be a stripped-down GraphQL API
-                filters: { "vehicle.trip.scheduleRelationship": ["SCHEDULED"] },
-                query:   `{ vehicle {
-                    vehicle { id }
-                    trip { routeId directionId }
-                    position { latitude longitude }
-                    timestamp
-                    occupancyStatus
-                } }`,
-            }));
-        });
-
-        this._ws.on("message", (data_: string) => {
-            // websocket is working, stop polling for data
-            clearInterval(this._livePollingInterval);
-            this._livePollingInterval = null;
-
-            const data = JSON.parse(data_).vehicle;
-            if (!data) return;
-
-            if (data.timestamp > this._lastMessageTimestamp) {
-                this._lastMessageTimestamp = data.timestamp;
-            }
-
-            if (isATVehicleRawWS(data)) {
-                this.loadVehiclePosition(data);
-            }
-        });
-
-        this._ws.on("error", (err: Error) => {
-            // HTTP errors (only while connecting?)
-            // buggy AT server returns 503 (AKA retry cause it's only
-            // temporarily broken), and has been known to break badly and
-            // 502 (this is kinda perma-broken, wait a bit before reconnecting)
-            if (err.message === "Unexpected server response: 503") {
-                logger.warn(`WebSocket returned error 503, retrying in ${SLEEP_BEFORE_WS_RECONNECT_503}ms`);
-                this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_503);
-                return;
-            }
-            if (err.message === "Unexpected server response: 502") {
-                logger.warn(`WebSocket returned error 502, retrying in ${SLEEP_BEFORE_WS_RECONNECT_502}ms`);
-                this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_502);
-                return;
-            }
-            throw err;
-        });
-
-        this._ws.on("close", (code: number) => {
-            this._ws = null;
-
-            if (code === WS_CODE_CLOSE_PLANNED_SHUTDOWN) {
-                // planned closure, requested internally
-                logger.verbose("WebSocket closed as part of a planned shutdown.");
-                return;
-            }
-
-            if (code === WS_CODE_CLOSE_NO_RECONNECT) {
-                // most likely reconnecting from somewhere else
-                logger.verbose("WebSocket close with code: WS_CODE_CLOSE_NO_RECONNECT");
-                return;
-            }
-
-            if (code === 1006) {
-                // abnormal closure, restart the websocket
-                // (error handler may have already set restartWebSocketTimeout)
-                if (this._restartWebSocketTimeout === null) {
-                    logger.warn(`WebSocket closed unexpectedly, restarting in ${SLEEP_BEFORE_WS_RECONNECT_GENERIC}ms`);
-                    this.restartWebSocketIn(SLEEP_BEFORE_WS_RECONNECT_GENERIC);
-                }
-                return;
-            }
-
-            throw new Error(`Unknown close code: ${code}`);
+        this.ws = new ATWebSocket({
+            url: this._webSocketUrl + this._key,
+            onVehicleUpdate: vehicle => {
+                this.loadVehiclePosition(vehicle);
+            },
+            onDisconnect: () => {
+                clearInterval(this._livePollingInterval);
+                this._livePollingInterval = setInterval(
+                    () => this.loadAllVehiclePositions(),
+                    this._livePollingIntervalSetting
+                );
+            },
+            onReconnect: () => {
+                clearInterval(this._livePollingInterval);
+                this._livePollingInterval = null;
+            },
         });
     }
 
     stopWebSocket() {
-        if (this._ws !== null) {
-            this._ws.close(WS_CODE_CLOSE_PLANNED_SHUTDOWN);
-        }
+        this.ws.destroy(WS_CODE_CLOSE_PLANNED_SHUTDOWN);
     }
 
     async load() {
@@ -396,14 +288,14 @@ class AucklandTransportData {
             if (!this._byShortName.has(shortName)) {
                 this._byShortName.set(shortName, {
                     shortName,
-                    routeIds:  new Set(),
-                    shapeIds:  [new Map(), new Map()],
+                    routeIds: new Set(),
+                    shapeIds: [new Map(), new Map()],
                     longNames: new Set(),
-                    longName:  "",
+                    longName: "",
                     polylines: [[], []],
-                    vehicles:  new Map(),
-                    type:      TRANSIT_TYPES[route.route_type] as TransitType,
-                    agencyId:  route.agency_id,
+                    vehicles: new Map(),
+                    type: TRANSIT_TYPES[route.route_type] as TransitType,
+                    agencyId: route.agency_id,
                 });
             }
             const processedRoute = this._byShortName.get(shortName);
