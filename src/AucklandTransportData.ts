@@ -35,15 +35,12 @@ class AucklandTransportData {
     private _pLimit: Limit;
     private ws: ATWebSocket;
     private _lastMessageTimestamp: number;
-    private _restartWebSocketTimeout: null | ReturnType<typeof setTimeout>;
-    private _livePollingInterval: null | ReturnType<typeof setInterval>;
+    private _livePollingInterval: null | ReturnType<typeof setInterval> = null;
     private _livePollingIntervalSetting: number;
-    private _webSocketHealthLastCheck: number;
-    private _webSocketMonitorInterval: ReturnType<typeof setInterval>;
-    private _byShortName: Map<string, ATRoute>;
-    private _byRouteId: Map<string, ATRoute>;
-    private _autoUpdateInterval: null | ReturnType<typeof setInterval>;
-    private _removeOldVehiclesInterval: null | ReturnType<typeof setInterval>;
+    private _byShortName = new Map<string, ATRoute>();
+    private _byRouteId = new Map<string, ATRoute>();
+    private _autoUpdateInterval: null | ReturnType<typeof setInterval> = null;
+    private _removeOldVehiclesInterval: null | ReturnType<typeof setInterval> = null;
 
     constructor({
         key,
@@ -68,37 +65,8 @@ class AucklandTransportData {
         this._pLimit = pLimit(maxParallelRequests);
         this._lastMessageTimestamp = 0;
 
-        // when the websocket breaks we'll try reconnect
-        this._restartWebSocketTimeout = null;
-
         // websocket is buggy, poll manually every LIVE_POLLING_INTERVAL if it isn't working
-        this._livePollingInterval = null;
         this._livePollingIntervalSetting = livePollingIntervalSetting;
-
-        /* Processed data by short name
-            {
-                shortName: {
-                    shortName,
-                    longNames: Set(),
-                    longName,
-                    routeIds:  Set(routeId),
-                    shapeIds:  [new Map<shapeId, count>(), new Map<shapeId, count>()],
-                    polylines: [[{ lat, lng }], [{ lat, lng }]],
-                    vehicles:  Map(vehicleId: {
-                        vehicleId,
-                        lastUpdatedUnix,
-                        directionId,
-                        position: { lat, lng },
-                    }),
-                    type: one of ["rail", "bus", "ferry"]
-                    agencyId
-                }
-            }
-        */
-        this._byShortName = new Map();
-
-        /* Links to _byShortName */
-        this._byRouteId = new Map();
     }
 
     clearCache() {
