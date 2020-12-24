@@ -1,6 +1,5 @@
 import { round } from "~/helpers";
 import { mercatorProjection } from "~/MercatorProjection";
-import { isATVehicleRaw } from "./typeChecks";
 
 // https://developers.google.com/transit/gtfs/reference#routestxt
 const TRANSIT_TYPES = ["tram", "subway", "rail", "bus", "ferry"];
