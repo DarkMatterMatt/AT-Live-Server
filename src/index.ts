@@ -20,7 +20,7 @@ process.on("uncaughtException", err => {
 
 const app = C.useSSL ? uWS.SSLApp(C.ssl) : uWS.App();
 
-const output = WSOutput.createInstance(app);
+const output = new WSOutput(app);
 
 /* Subscribe / publish by route short names */
 const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, output);
@@ -35,7 +35,6 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, out
     process.on("SIGINT", () => {
         logger.info("Caught interrupt signal");
         aucklandTransportData.stopAutoUpdates();
-        aucklandTransportData.stopWebSocket();
         for (const ws of activeWebSockets.values()) {
             ws.end(WS_CODE_CLOSE_GOING_AWAY, "Server is shutting down");
         }
