@@ -3,7 +3,7 @@ import pLimit, { Limit } from "p-limit";
 import { performance } from "perf_hooks";
 import simplify from "simplify-js";
 import spacetime from "spacetime";
-import { ATWebSocket, convertATShapePointRawToLatLngs, convertATVehicleRawToATVehicle, convertLatLngsToPolylinePoints, convertPointsToLatLngs, convertPolylinePointsToPoints, isATVehicleRaw } from "~/aucklandTransport";
+import { ATWebSocket, convertATShapePointRawToLatLngs, convertATVehicleRawToATVehicle, convertLatLngsToPolylineLatLngPixels, convertLatLngsToPolylinePoints, isATVehicleRaw } from "~/aucklandTransport";
 import Cache from "./Cache";
 import { map } from "./helpers";
 import logger from "./logger";
@@ -312,10 +312,10 @@ class AucklandTransportData {
                 // we'll use the longest shape (simplified so Google Maps doesn't die)
                 const [polyline] = polylines.sort((a, b) => b[b.length - 1].dist - a[a.length - 1].dist);
                 const simplifiedShape = simplify(
-                    convertPolylinePointsToPoints(polyline), POLYLINE_SIMPLIFICATION, true
-                );
+                    polyline.map(p => ({ x: p.lat, y: p.lng })), POLYLINE_SIMPLIFICATION, true
+                ).map(p => ({ lat: p.x, lng: p.y }));
 
-                processedRoute.polylines[i] = convertLatLngsToPolylinePoints(convertPointsToLatLngs(simplifiedShape));
+                processedRoute.polylines[i] = convertLatLngsToPolylineLatLngPixels(simplifiedShape);
 
                 // sort shapeIds for consistency in the API
                 processedRoute.shapeIds[i] = new Map(shapeIds.sort((a, b) => a[0].localeCompare(b[0])));

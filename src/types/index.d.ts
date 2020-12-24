@@ -38,10 +38,14 @@ interface LatLng {
     lng: number;
 }
 
+interface LatLngPixel extends LatLng, Point {}
+
 interface PolylineLatLng extends LatLng {
     /** distance travelled from start of route, in meters */
     dist: number;
 }
+
+interface PolylineLatLngPixel extends PolylineLatLng, LatLngPixel {}
 
 interface ATVehicle {
     routeId: string;
@@ -56,7 +60,7 @@ interface ATRoute {
     agencyId: string;
     longName: string;
     longNames: Set<string>;
-    polylines: [PolylineLatLng[], PolylineLatLng[]];
+    polylines: [PolylineLatLngPixel[], PolylineLatLngPixel[]];
     routeIds: Set<string>;
     shapeIds: [Map<string, number>, Map<string, number>];
     shortName: string;

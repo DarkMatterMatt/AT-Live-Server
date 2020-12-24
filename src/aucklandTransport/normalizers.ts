@@ -46,8 +46,12 @@ export function convertATShapePointRawToLatLngs(points: ATShapePointRaw[]): LatL
     return points.map(p => ({ lat: p.shape_pt_lat, lng: p.shape_pt_lon }));
 }
 
-export function convertPointsToLatLngs(points: Point[]): LatLng[] {
-    return points.map(p => ({ lat: p.x, lng: p.y }));
+export function convertLatLngsToLatLngPixels(latLngs: LatLng[]): LatLngPixel[] {
+    return latLngs.map(l => ({ ...l, ...mercatorProjection.fromLatLngToPoint(l) }));
+}
+
+export function convertLatLngsToPolylineLatLngPixels(latLngs: LatLng[]): PolylineLatLngPixel[] {
+    return convertLatLngsPixelsToPolylineLatLngPixels(convertLatLngsToLatLngPixels(latLngs));
 }
 
 export function convertLatLngsToPolylinePoints(points: LatLng[]): PolylineLatLng[] {
@@ -64,6 +68,16 @@ export function convertLatLngsToPolylinePoints(points: LatLng[]): PolylineLatLng
     return output;
 }
 
-export function convertPolylinePointsToPoints(points: PolylineLatLng[]): Point[] {
-    return points.map(p => ({ x: p.lat, y: p.lng }));
+export function convertLatLngsPixelsToPolylineLatLngPixels(latLngPixels: LatLngPixel[]): PolylineLatLngPixel[] {
+    const output: PolylineLatLngPixel[] = new Array(latLngPixels.length);
+    output[0] = { ...latLngPixels[0], dist: 0 };
+
+    let dist = 0;
+    for (let i = 1; i < latLngPixels.length; i++) {
+        const avgLat = (latLngPixels[i - 1].lat + latLngPixels[i].lat) / 2;
+        dist += mercatorProjection.getDistBetweenPoints(latLngPixels[i - 1], latLngPixels[i], avgLat);
+
+        output[i] = { ...latLngPixels[i], dist: round(dist, 2) };
+    }
+    return output;
 }
