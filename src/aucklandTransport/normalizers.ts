@@ -15,20 +15,21 @@ const OCCUPANCY_STATUSES = [
     "NOT_ACCEPTING_PASSENGERS",
 ];
 
-export function convertATVehicleRawToATVehicle(data: ATVehicleRaw | ATVehicleRawWS): ATVehicle {
-    if (isATVehicleRaw(data)) {
-        return {
-            directionId: data.trip.direction_id,
-            lastUpdatedUnix: data.timestamp,
-            occupancyStatus: data.occupancy_status,
-            position: {
-                lat: data.position.latitude,
-                lng: data.position.longitude,
-            },
-            routeId: data.trip.route_id,
-            vehicleId: data.vehicle.id,
-        };
-    }
+export function convertATVehicleRawToATVehicle(data: ATVehicleRaw): ATVehicle {
+    return {
+        directionId: data.trip.direction_id,
+        lastUpdatedUnix: data.timestamp,
+        occupancyStatus: data.occupancy_status,
+        position: {
+            lat: data.position.latitude,
+            lng: data.position.longitude,
+        },
+        routeId: data.trip.route_id,
+        vehicleId: data.vehicle.id,
+    };
+}
+
+export function convertATVehicleRawWSToATVehicle(data: ATVehicleRawWS): ATVehicle {
     return {
         directionId: data.trip.directionId,
         lastUpdatedUnix: Number.parseInt(data.timestamp),

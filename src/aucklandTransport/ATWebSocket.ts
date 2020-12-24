@@ -1,7 +1,7 @@
 import WebSocket from "ws";
 import logger from "~/logger";
 import { CLOSE_CODE_RESTART, PersistentWebSocket, PersistentWebSocketOpts } from "~/PersistentWebSocket";
-import { convertATVehicleRawToATVehicle } from "./normalizers";
+import { convertATVehicleRawWSToATVehicle } from "./normalizers";
 import { isATVehicleRawWS } from "./typeChecks";
 
 const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
@@ -53,7 +53,7 @@ export class ATWebSocket {
             onMessage: (ws, data_) => {
                 const data = JSON.parse(data_).vehicle;
                 if (isATVehicleRawWS(data)) {
-                    this.onVehicleUpdate(convertATVehicleRawToATVehicle(data));
+                    this.onVehicleUpdate(convertATVehicleRawWSToATVehicle(data));
                 }
             },
             onError: (ws, err) => {
