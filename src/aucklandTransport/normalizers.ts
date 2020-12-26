@@ -46,6 +46,10 @@ export function convertATShapePointRawToLatLngs(points: ATShapePointRaw[]): LatL
     return points.map(p => ({ lat: p.shape_pt_lat, lng: p.shape_pt_lon }));
 }
 
+export function convertLatLngToLatLngPixel(latLng: LatLng): LatLngPixel {
+    return { ...latLng, ...mercatorProjection.fromLatLngToPoint(latLng) };
+}
+
 export function convertLatLngsToLatLngPixels(latLngs: LatLng[]): LatLngPixel[] {
     return latLngs.map(l => ({ ...l, ...mercatorProjection.fromLatLngToPoint(l) }));
 }
@@ -80,4 +84,8 @@ export function convertLatLngsPixelsToPolylineLatLngPixels(latLngPixels: LatLngP
         output[i] = { ...latLngPixels[i], dist: round(dist, 2) };
     }
     return output;
+}
+
+export function convertPixelToLatLngPixel(pixel: Pixel): LatLngPixel {
+    return { ...pixel, ...mercatorProjection.fromPointToLatLng(pixel) };
 }

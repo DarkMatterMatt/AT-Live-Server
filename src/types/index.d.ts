@@ -33,6 +33,8 @@ interface AucklandTransportDataOpts {
     webSocketUrl: string;
 }
 
+type Pixel = Point;
+
 interface LatLng {
     lat: number;
     lng: number;
