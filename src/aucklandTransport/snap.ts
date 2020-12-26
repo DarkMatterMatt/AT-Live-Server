@@ -2,15 +2,16 @@ import { getClosestPointOnPath } from "~/helpers";
 import { mercatorProjection } from "~/MercatorProjection";
 import { convertPixelToLatLngPixel } from "./normalizers";
 
-export function snapBusToPolyline(polyline: PolylineLatLngPixel, bus: LatLng): {
+export function snapVehicleToPolyline(polyline: PolylineLatLngPixel[], vehicle: LatLng): {
     snapPosition: LatLngPixel;
     snapDist: number;
 } {
-    const busPixel = mercatorProjection.fromLatLngToPoint(bus);
-    const snapPosition = convertPixelToLatLngPixel(getClosestPointOnPath(polyline, busPixel));
+    const vehiclePixel = mercatorProjection.fromLatLngToPoint(vehicle);
+    const snapPixel = getClosestPointOnPath(polyline, vehiclePixel);
+    const snapPosition = convertPixelToLatLngPixel(snapPixel);
 
-    const avgLat = (bus.lat + snapPosition.lat) / 2;
-    const snapDist = mercatorProjection.getDistBetweenPoints(bus, snapPosition, avgLat);
+    const avgLat = (vehicle.lat + snapPosition.lat) / 2;
+    const snapDist = mercatorProjection.getDistBetweenPoints(vehiclePixel, snapPosition, avgLat);
 
     return { snapPosition, snapDist };
 }
