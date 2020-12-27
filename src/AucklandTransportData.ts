@@ -8,6 +8,7 @@ import { processVehicle } from "./aucklandTransport/vehicle";
 import Cache from "./Cache";
 import { map } from "./helpers";
 import logger from "./logger";
+import { logSnapDeviation } from "./logging";
 
 const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
 const WS_CODE_CLOSE_NO_RECONNECT = 4001;
@@ -180,6 +181,8 @@ class AucklandTransportData {
         if (vehicle == null) {
             return false;
         }
+
+        logSnapDeviation(vehicle.snapDeviation);
 
         route.vehicles.set(vehicle.vehicleId, vehicle);
         const outputVehicle = convertATVehicleToOutputVehicle(route, vehicle);
