@@ -39,7 +39,6 @@ export class PersistentWebSocket {
         if (opts.onClose != null) {
             this.onClose = opts.onClose;
         }
-        if (opts.onDisconnect != null) {
         if (opts.onError != null) {
             this.onError = opts.onError;
         }
@@ -136,7 +135,6 @@ export class PersistentWebSocket {
         });
 
         ws.on("pong", _ => {
-            logger.info("Recieved pong from server");
             this.lastMessageOrPong = Date.now();
         });
 
