@@ -49,13 +49,24 @@ interface PolylineLatLng extends LatLng {
 
 interface PolylineLatLngPixel extends PolylineLatLng, LatLngPixel {}
 
-interface ATVehicle {
+interface ATVehicleUnprocessed {
     routeId: string;
     directionId: 0 | 1;
     lastUpdatedUnix: number;
     position: LatLng;
     vehicleId: string;
     occupancyStatus: number;
+}
+
+interface ATVehicle {
+    routeId: string;
+    directionId: 0 | 1;
+    lastUpdated: number;
+    position: LatLng;
+    vehicleId: string;
+    occupancyStatus: number;
+    snapPosition: LatLng;
+    snapDiviation: number;
 }
 
 interface ATRoute {

@@ -14,7 +14,7 @@ const OCCUPANCY_STATUSES = [
     "NOT_ACCEPTING_PASSENGERS",
 ];
 
-export function convertATVehicleRawToATVehicle(data: ATVehicleRaw): ATVehicle {
+export function convertATVehicleRawToATVehicleUnprocessed(data: ATVehicleRaw): ATVehicleUnprocessed {
     return {
         directionId: data.trip.direction_id,
         lastUpdatedUnix: data.timestamp,
@@ -28,7 +28,7 @@ export function convertATVehicleRawToATVehicle(data: ATVehicleRaw): ATVehicle {
     };
 }
 
-export function convertATVehicleRawWSToATVehicle(data: ATVehicleRawWS): ATVehicle {
+export function convertATVehicleRawWSToATVehicleUnprocessed(data: ATVehicleRawWS): ATVehicleUnprocessed {
     return {
         directionId: data.trip.directionId,
         lastUpdatedUnix: Number.parseInt(data.timestamp),
@@ -44,6 +44,26 @@ export function convertATVehicleRawWSToATVehicle(data: ATVehicleRawWS): ATVehicl
 
 export function convertATShapePointRawToLatLngs(points: ATShapePointRaw[]): LatLng[] {
     return points.map(p => ({ lat: p.shape_pt_lat, lng: p.shape_pt_lon }));
+}
+
+export function convertATVehicleToOutputVehicle(route: ATRoute, vehicle: ATVehicle): OutputVehicle {
+    return {
+        status: "success",
+        route: "live/vehicle",
+
+        shortName: route.shortName,
+        routeId: vehicle.routeId,
+        directionId: vehicle.directionId,
+        lastUpdatedUnix: vehicle.lastUpdated / 1000,
+        lastUpdated: vehicle.lastUpdated,
+
+        position: vehicle.position,
+        vehicleId: vehicle.vehicleId,
+        occupancyStatus: vehicle.occupancyStatus,
+
+        snapPosition: vehicle.snapPosition,
+        snapDeviation: vehicle.snapDiviation,
+    };
 }
 
 export function convertLatLngToLatLngPixel(latLng: LatLng): LatLngPixel {
@@ -88,4 +108,18 @@ export function convertLatLngsPixelsToPolylineLatLngPixels(latLngPixels: LatLngP
 
 export function convertPixelToLatLngPixel(pixel: Pixel): LatLngPixel {
     return { ...pixel, ...mercatorProjection.fromPointToLatLng(pixel) };
+}
+
+export function toLatLng(latLng: LatLng): LatLng {
+    return {
+        lat: latLng.lat,
+        lng: latLng.lng,
+    };
+}
+
+export function toPoint(point: Point): Point {
+    return {
+        x: point.x,
+        y: point.y,
+    };
 }

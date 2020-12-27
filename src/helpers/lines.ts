@@ -2,6 +2,8 @@
  * Code TypeScriptified from source provided by Lachlan Davidson (github.com/lachlan2k)
  */
 
+import { clamp } from "./number";
+
 /**
  * Return distance**2 between two points.
  */
@@ -32,6 +34,22 @@ function pointIsOutOfBounds(line: [Point, Point], point: Point): boolean {
  */
 function projectPointOnLine(line: [Point, Point], point: Point): Point {
     const [a, b] = line;
+
+    // purely horizontal line
+    if (a.y === b.y) {
+        return {
+            x: a.x < b.x ? clamp(point.x, a.x, b.x) : clamp(point.x, b.x, a.x),
+            y: a.y,
+        };
+    }
+    // purely vertical line
+    if (a.x === b.x) {
+        return {
+            x: a.x,
+            y: a.y < b.y ? clamp(point.y, a.y, b.y) : clamp(point.y, b.y, a.y),
+        };
+    }
+
     const targetLineM = (b.y - a.y) / (b.x - a.x);
     const targetLineC = a.y - (targetLineM * a.x);
 

@@ -1,7 +1,7 @@
 import WebSocket from "ws";
 import logger from "~/logger";
 import { CLOSE_CODE_RESTART, PersistentWebSocket, PersistentWebSocketOpts } from "~/PersistentWebSocket";
-import { convertATVehicleRawWSToATVehicle } from "./normalizers";
+import { convertATVehicleRawWSToATVehicleUnprocessed } from "./normalizers";
 import { isATVehicleRawWS } from "./typeChecks";
 
 const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
@@ -12,12 +12,12 @@ const SLEEP_BEFORE_WS_RECONNECT_GENERIC = 500;
 export interface ATWebSocketOpts {
     onDisconnect?: ((ws: WebSocket) => void);
     onReconnect?: ((ws: WebSocket) => void);
-    onVehicleUpdate: (vehicle: ATVehicle) => void;
+    onVehicleUpdate: (vehicle: ATVehicleUnprocessed) => void;
     url: string;
 }
 
 export class ATWebSocket {
-    private onVehicleUpdate: (vehicle: ATVehicle) => void;
+    private onVehicleUpdate: (vehicle: ATVehicleUnprocessed) => void;
     private url: string;
     private ws: PersistentWebSocket;
     private wsOpts: PersistentWebSocketOpts;
@@ -53,7 +53,7 @@ export class ATWebSocket {
             onMessage: (ws, data_) => {
                 const data = JSON.parse(data_).vehicle;
                 if (isATVehicleRawWS(data)) {
-                    this.onVehicleUpdate(convertATVehicleRawWSToATVehicle(data));
+                    this.onVehicleUpdate(convertATVehicleRawWSToATVehicleUnprocessed(data));
                 }
             },
             onError: (ws, err) => {

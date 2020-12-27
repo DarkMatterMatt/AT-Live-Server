@@ -3,7 +3,8 @@ import pLimit, { Limit } from "p-limit";
 import { performance } from "perf_hooks";
 import simplify from "simplify-js";
 import spacetime from "spacetime";
-import { ATWebSocket, convertATShapePointRawToLatLngs, convertATVehicleRawToATVehicle, convertLatLngsToPolylineLatLngPixels, convertLatLngsToPolylinePoints, isATVehicleRaw } from "~/aucklandTransport";
+import { ATWebSocket, convertATShapePointRawToLatLngs, convertATVehicleRawToATVehicleUnprocessed, convertATVehicleToOutputVehicle, convertLatLngsToPolylineLatLngPixels, convertLatLngsToPolylinePoints, isATVehicleRaw } from "~/aucklandTransport";
+import { processVehicle } from "./aucklandTransport/vehicle";
 import Cache from "./Cache";
 import { map } from "./helpers";
 import logger from "./logger";
@@ -164,39 +165,26 @@ class AucklandTransportData {
         this._byShortName.forEach(processedRoute => {
             processedRoute.vehicles.forEach((processedVehicle, vehicleId) => {
                 // remove vehicles more than 2 mins old
-                if (processedVehicle.lastUpdatedUnix * 1000 < now - OLD_VEHICLE_THRESHOLD) {
+                if (processedVehicle.lastUpdated < now - OLD_VEHICLE_THRESHOLD) {
                     processedRoute.vehicles.delete(vehicleId);
                 }
             });
         });
     }
 
-    loadVehiclePosition(vehicle: ATVehicle) {
+    loadVehiclePosition(unprocessedVehicle: ATVehicleUnprocessed): boolean {
         // ignore vehicles more than 2 minutes old
-        if (vehicle.lastUpdatedUnix * 1000 < Date.now() - OLD_VEHICLE_THRESHOLD) return false;
+        if (unprocessedVehicle.lastUpdatedUnix * 1000 < Date.now() - OLD_VEHICLE_THRESHOLD) return false;
 
-        const route = this._byRouteId.get(vehicle.routeId);
-        if (route === undefined) {
-            // usually because the vehicle is operating off an old route version
-            logger.warn("Skipping vehicle update because its parent route does not exist!", { vehicle });
+        const { vehicle, route } = processVehicle(this._byRouteId, unprocessedVehicle);
+        if (vehicle == null) {
             return false;
         }
 
-        const old = route.vehicles.get(vehicle.vehicleId);
+        route.vehicles.set(vehicle.vehicleId, vehicle);
+        const outputVehicle = convertATVehicleToOutputVehicle(route, vehicle);
+        this.output.publish(route.shortName, outputVehicle);
 
-        if (old === undefined || old.lastUpdatedUnix !== vehicle.lastUpdatedUnix) {
-            route.vehicles.set(vehicle.vehicleId, vehicle);
-            this.output.publish(route.shortName, {
-                ...vehicle,
-                status: "success",
-                route: "live/vehicle", // websocket JSON route, not the vehicle's transit route
-                shortName: route.shortName,
-                lastUpdated: vehicle.lastUpdatedUnix * 1000,
-                // TODO: snap vehicle position to route
-                snapPosition: vehicle.position,
-                snapDeviation: 0,
-            });
-        }
         return true;
     }
 
@@ -212,7 +200,7 @@ class AucklandTransportData {
         let numVehiclesUpdated = 0;
         for (const vehicle of response.entity) {
             if (isATVehicleRaw(vehicle)) {
-                const updateHappened = this.loadVehiclePosition(convertATVehicleRawToATVehicle(vehicle));
+                const updateHappened = this.loadVehiclePosition(convertATVehicleRawToATVehicleUnprocessed(vehicle));
                 if (updateHappened) {
                     numVehiclesUpdated += 1;
                 }
