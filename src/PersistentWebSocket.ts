@@ -2,6 +2,7 @@ import WebSocket from "ws";
 
 export const EXPECT_PING_RESPONSE_IN_MS = 2000;
 export const CLOSE_CODE_RESTART = 4002;
+export const RESTART_DELAY_AFTER_DISCONNECT = 100;
 
 export interface PersistentWebSocketOpts {
     healthCheckFrequency?: number;
@@ -136,7 +137,7 @@ export class PersistentWebSocket {
         });
 
         ws.on("open", () => {
-            if (this.lastMessageOrPong === 0) {
+            if (this.lastMessageOrPong !== 0) {
                 if (this.onReconnect != null) {
                     this.onReconnect(ws);
                 }
@@ -161,7 +162,7 @@ export class PersistentWebSocket {
     }
 
     private healthCheck(): void {
-        if (this.ws.readyState !== this.ws.OPEN) {
+        if (this.ws.readyState !== this.ws.OPEN || this.restartPending()) {
             // only check health when it is supposed to be connected
             return;
         }
@@ -182,6 +183,7 @@ export class PersistentWebSocket {
             // no reply to ping (last data was recieved before we sent the ping)
             if (this.lastMessageOrPong < pingSent) {
                 if (this.onDisconnect != null) {
+                    this.restart(RESTART_DELAY_AFTER_DISCONNECT);
                     this.onDisconnect(this.ws);
                 }
             }
