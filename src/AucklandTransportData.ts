@@ -216,17 +216,27 @@ class AucklandTransportData {
                 this.loadVehiclePosition(vehicle);
             },
             onDisconnect: () => {
-                clearInterval(this._livePollingInterval);
-                this._livePollingInterval = setInterval(
-                    () => this.loadAllVehiclePositions(),
-                    this._livePollingIntervalSetting
-                );
+                logger.info("ATWebSocket onDisconnect");
+                this.startLivePolling();
             },
-            onReconnect: () => {
-                clearInterval(this._livePollingInterval);
-                this._livePollingInterval = null;
+            onConnect: () => {
+                logger.info("ATWebSocket onConnect");
+                this.stopLivePolling();
             },
         });
+    }
+
+    private startLivePolling(): void {
+        clearInterval(this._livePollingInterval);
+        this._livePollingInterval = setInterval(
+            () => this.loadAllVehiclePositions(),
+            this._livePollingIntervalSetting
+        );
+    }
+
+    private stopLivePolling(): void {
+        clearInterval(this._livePollingInterval);
+        this._livePollingInterval = null;
     }
 
     stopWebSocket() {
@@ -330,6 +340,7 @@ class AucklandTransportData {
     startAutoUpdates() {
         this._autoUpdateInterval = setInterval(() => this.lookForUpdates(), LOOK_FOR_UPDATES_INTERVAL);
         this._removeOldVehiclesInterval = setInterval(() => this.removeOldVehicles(), REMOVE_OLD_VEHICLE_INTERVAL);
+        this.startLivePolling();
         this.startWebSocket();
     }
 
@@ -337,6 +348,7 @@ class AucklandTransportData {
         clearInterval(this._autoUpdateInterval);
         clearInterval(this._removeOldVehiclesInterval);
         this.stopWebSocket();
+        this.stopLivePolling();
     }
 }
 

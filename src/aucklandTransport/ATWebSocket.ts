@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import logger from "~/logger";
-import { CLOSE_CODE_RESTART, PersistentWebSocket, PersistentWebSocketOpts } from "~/PersistentWebSocket";
+import { CLOSE_CODE_RESTART, PersistentWebSocket } from "~/PersistentWebSocket";
 import { convertATVehicleRawWSToATVehicleUnprocessed } from "./normalizers";
 import { isATVehicleRawWS } from "./typeChecks";
 
@@ -10,32 +10,38 @@ const SLEEP_BEFORE_WS_RECONNECT_502 = 60 * 1000;
 const SLEEP_BEFORE_WS_RECONNECT_GENERIC = 500;
 
 export interface ATWebSocketOpts {
-    onDisconnect?: ((ws: WebSocket) => void);
-    onReconnect?: ((ws: WebSocket) => void);
+    onConnect?: ((ws: WebSocket) => void);
+    onDisconnect?: ((ws: WebSocket, code: number, reason: string) => void);
     onVehicleUpdate: (vehicle: ATVehicleUnprocessed) => void;
     url: string;
 }
 
 export class ATWebSocket {
+    private onConnect: ((ws: WebSocket) => void) | null = null;
+    private onDisconnect: ((ws: WebSocket, code: number, reason: string) => void) | null = null;
     private onVehicleUpdate: (vehicle: ATVehicleUnprocessed) => void;
     private url: string;
     private ws: PersistentWebSocket;
-    private wsOpts: PersistentWebSocketOpts;
 
     constructor(opts: ATWebSocketOpts) {
-        this.wsOpts = {
-            onDisconnect: opts.onDisconnect,
-            onReconnect: opts.onReconnect,
-            url: opts.url,
-        };
+        this.url = opts.url;
+
         this.onVehicleUpdate = opts.onVehicleUpdate;
+
+        if (opts.onConnect != null) {
+            this.onConnect = opts.onConnect;
+        }
+
+        if (opts.onDisconnect != null) {
+            this.onDisconnect = opts.onDisconnect;
+        }
 
         this.startWebSocket();
     }
 
     private startWebSocket() {
         this.ws = new PersistentWebSocket({
-            ...this.wsOpts,
+            url: this.url,
             onOpen: ws => {
                 logger.info("ATWebSocket open");
                 ws.send(JSON.stringify({
@@ -49,6 +55,10 @@ export class ATWebSocket {
                         occupancyStatus
                     } }`,
                 }));
+
+                if (this.onConnect != null) {
+                    this.onConnect(ws);
+                }
             },
             onMessage: (ws, data_) => {
                 const data = JSON.parse(data_).vehicle;
@@ -58,6 +68,7 @@ export class ATWebSocket {
             },
             onError: (ws, err) => {
                 logger.info("ATWebSocket error", err);
+
                 // HTTP errors (only while connecting?)
                 // buggy AT server returns 503 (AKA retry cause it's only
                 // temporarily broken), and has been known to break badly and
@@ -72,8 +83,13 @@ export class ATWebSocket {
                 }
                 throw err;
             },
-            onClose: (ws, code) => {
+            onClose: (ws, code, reason) => {
                 logger.info("ATWebSocket close", code);
+
+                if (this.onDisconnect != null) {
+                    this.onDisconnect(ws, code, reason);
+                }
+
                 if (code === WS_CODE_CLOSE_PLANNED_SHUTDOWN) {
                     // planned closure, requested internally
                     logger.verbose("WebSocket closed as part of a planned shutdown.");

@@ -11,7 +11,6 @@ export interface PersistentWebSocketOpts {
      * return number to restart in specified number of milliseconds.
      */
     onClose?: (ws: WebSocket, code: number, reason: string) => undefined | false | number;
-    onDisconnect?: ((ws: WebSocket) => void);
     /**
      * Callback function, return false to disable automatic restart,
      * return number to restart in specified number of milliseconds.
@@ -19,7 +18,6 @@ export interface PersistentWebSocketOpts {
     onError?: (ws: WebSocket, err: Error) => undefined | false | number;
     onMessage?: (ws: WebSocket, data: string) => void;
     onOpen?: (ws: WebSocket) => void;
-    onReconnect?: ((ws: WebSocket) => void);
     url: string;
 }
 
@@ -29,11 +27,9 @@ export class PersistentWebSocket {
     private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
     private lastMessageOrPong = 0;
     private onClose: ((ws: WebSocket, code: number, reason: string) => undefined | false | number) | null = null;
-    private onDisconnect: ((ws: WebSocket) => void) | null = null;
     private onError: ((ws: WebSocket, err: Error) => undefined | false | number) | null = null;
     private onMessage: ((ws: WebSocket, data: string) => void) | null = null;
     private onOpen: ((ws: WebSocket) => void) | null = null;
-    private onReconnect: ((ws: WebSocket) => void) | null = null;
     private restartTimeout: ReturnType<typeof setTimeout> | null = null;
     private url: string;
     private userRequestedClose = false;
@@ -44,8 +40,6 @@ export class PersistentWebSocket {
             this.onClose = opts.onClose;
         }
         if (opts.onDisconnect != null) {
-            this.onDisconnect = opts.onDisconnect;
-        }
         if (opts.onError != null) {
             this.onError = opts.onError;
         }
@@ -54,9 +48,6 @@ export class PersistentWebSocket {
         }
         if (opts.onOpen != null) {
             this.onOpen = opts.onOpen;
-        }
-        if (opts.onReconnect != null) {
-            this.onReconnect = opts.onReconnect;
         }
         if (opts.healthCheckFrequency != null) {
             this.healthCheckFrequency = opts.healthCheckFrequency;
@@ -137,12 +128,6 @@ export class PersistentWebSocket {
         });
 
         ws.on("open", () => {
-            if (this.lastMessageOrPong !== 0) {
-                if (this.onReconnect != null) {
-                    this.onReconnect(ws);
-                }
-            }
-
             this.lastMessageOrPong = Date.now();
 
             if (this.onOpen != null) {
@@ -151,6 +136,7 @@ export class PersistentWebSocket {
         });
 
         ws.on("pong", _ => {
+            logger.info("Recieved pong from server");
             this.lastMessageOrPong = Date.now();
         });
 
@@ -182,10 +168,7 @@ export class PersistentWebSocket {
         setTimeout(() => {
             // no reply to ping (last data was recieved before we sent the ping)
             if (this.lastMessageOrPong < pingSent) {
-                if (this.onDisconnect != null) {
-                    this.restart(RESTART_DELAY_AFTER_DISCONNECT);
-                    this.onDisconnect(this.ws);
-                }
+                this.restart(RESTART_DELAY_AFTER_DISCONNECT);
             }
             this.healthCheckInProgress = false;
         }, EXPECT_PING_RESPONSE_IN_MS);
