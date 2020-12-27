@@ -66,7 +66,7 @@ interface ATVehicle {
     vehicleId: string;
     occupancyStatus: number;
     snapPosition: LatLng;
-    snapDiviation: number;
+    snapDeviation: number;
 }
 
 interface ATRoute {

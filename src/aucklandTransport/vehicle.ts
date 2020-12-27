@@ -40,7 +40,7 @@ export function processVehicle(routesById: Map<string, ATRoute>, vehicle: ATVehi
         vehicleId: vehicle.vehicleId,
         occupancyStatus: vehicle.occupancyStatus,
         snapPosition: toLatLng(snapPosition),
-        snapDiviation: snapDist,
+        snapDeviation: snapDist,
     };
 
     return {
