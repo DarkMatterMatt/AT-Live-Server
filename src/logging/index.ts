@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-types */
 
 import logger from "~/logger";
-import { outputSnapDivisions } from "./snapDeviation";
 
 export * from "./snapDeviation";
 
@@ -26,4 +25,4 @@ export function disableLogging(fn: Function): void {
     enabledFunctions.delete(fn);
 }
 
-enableLogging(outputSnapDivisions, 10 * MINUTE, logger.verbose);
+// enableLogging(outputSnapDivisions, 10 * MINUTE, logger.verbose);
