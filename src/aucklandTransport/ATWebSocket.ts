@@ -47,13 +47,7 @@ export class ATWebSocket {
                 ws.send(JSON.stringify({
                     // appears to be a stripped-down GraphQL API
                     filters: { "vehicle.trip.scheduleRelationship": ["SCHEDULED"] },
-                    query: `{ vehicle {
-                        vehicle { id }
-                        trip { routeId directionId }
-                        position { latitude longitude }
-                        timestamp
-                        occupancyStatus
-                    } }`,
+                    query: "{ vehicle }",
                 }));
 
                 if (this.onConnect != null) {
