@@ -22,6 +22,8 @@ let ws: WebSocket | null = null;
 
 let restartWebSocketTimeout: ReturnType<typeof setTimeout> | null = null;
 
+let lastMessage = Date.now();
+
 let logPath = "";
 
 let stream: fs.WriteStream = null;
@@ -50,10 +52,6 @@ function setRestartWebSocketTimeout(ms = 2000) {
     restartWebSocketTimeout = setTimeout(() => {
         start();
     }, ms);
-}
-
-function clearRestartWebSocketTimeout() {
-    clearTimeout(restartWebSocketTimeout);
 }
 
 function log(message: any) {
@@ -88,17 +86,13 @@ function start() {
     });
 
     ws.on("message", data => {
-        clearRestartWebSocketTimeout();
+        lastMessage = Date.now();
         log(data);
     });
 
     ws.on("close", () => {
         console.warn("WebSocket close");
         setRestartWebSocketTimeout(100);
-    });
-
-    ws.on("pong", () => {
-        clearRestartWebSocketTimeout();
     });
 }
 
@@ -109,14 +103,11 @@ function start() {
     }, 10 * 1000);
 
     setInterval(() => {
-        if (ws != null && ws.readyState === ws.OPEN) {
-            ws.ping();
+        if (lastMessage < Date.now() - 5000) {
+            console.warn("No message received for 5 seconds, restarting websocket");
+            setRestartWebSocketTimeout(0);
         }
-    }, 1000);
-
-    setInterval(() => {
-        setRestartWebSocketTimeout();
-    }, 2500);
+    }, 100);
 
     setInterval(() => {
         console.log(`Logged a total of ${loggedCount} messages`);
