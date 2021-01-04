@@ -1,6 +1,9 @@
 // fix TS1208
 export {};
 
+// grep '\\"tripUpdate\\"\:null' ./2021-01-02-20.jsonl > ./2021-01-02-20.vehicles.jsonl
+// head -n5 2021-01-02-20.vehicles.jsonl | jq -csr 'map(.message | fromjson.vehicle) | .[]'
+
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 import fs from "fs";
@@ -44,6 +47,11 @@ function rotateLogFile() {
     stream = fs.createWriteStream(logPath, { flags: "a" });
     if (oldStream != null) {
         oldStream.end();
+
+        // upload file to Google Drive
+        setTimeout(() => {
+            // do something with oldStream.path.toString()
+        }, 1000);
     }
 }
 
