@@ -1,5 +1,5 @@
 interface Config {
-    port: number;
+    port?: number;
     useSSL: boolean;
     ssl?: {
         key_file_name: string;
@@ -15,7 +15,7 @@ interface Config {
         };
     };
     aucklandTransport: AucklandTransportDataOpts;
-    logger: {
+    logger?: {
         logFile?: string;
         logLevel?: string;
         colors?: Record<string, any>;
