@@ -4,7 +4,7 @@ import { CLOSE_CODE_RESTART, PersistentWebSocket } from "~/PersistentWebSocket";
 import { convertATVehicleRawWSToATVehicleUnprocessed } from "./normalizers";
 import { isATVehicleRawWS } from "./typeChecks";
 
-const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
+export const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
 const SLEEP_BEFORE_WS_RECONNECT_503 = 500;
 const SLEEP_BEFORE_WS_RECONNECT_502 = 60 * 1000;
 const SLEEP_BEFORE_WS_RECONNECT_GENERIC = 500;

@@ -1,4 +1,4 @@
-export interface ATVehicleRawWS {
+interface ATVehicleRawWS {
     trip: {
         tripId: string;
         startTime: string;
