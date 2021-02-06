@@ -22,4 +22,6 @@ interface OutputVehicle {
     snapPosition: LatLng;
     /** Distance (meters) between reported position and calculated position */
     snapDeviation: number;
+    /** Direction of route at snapPosition. 0 to 360 degrees, clockwise from North */
+    snapBearing: number;
 }

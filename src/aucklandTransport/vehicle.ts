@@ -30,7 +30,11 @@ export function processVehicle(routesById: Map<string, ATRoute>, vehicle: ATVehi
         return { vehicle: null, route };
     }
 
-    const { snapPosition, snapDist } = snapVehicleToPolyline(route.polylines[vehicle.directionId], vehicle.position);
+    const {
+        snapPosition,
+        snapDist,
+        snapBearing,
+    } = snapVehicleToPolyline(route.polylines[vehicle.directionId], vehicle.position);
 
     const processed: ATVehicle = {
         routeId: vehicle.routeId,
@@ -41,6 +45,7 @@ export function processVehicle(routesById: Map<string, ATRoute>, vehicle: ATVehi
         occupancyStatus: vehicle.occupancyStatus,
         snapPosition: toLatLng(snapPosition),
         snapDeviation: snapDist,
+        snapBearing,
     };
 
     return {

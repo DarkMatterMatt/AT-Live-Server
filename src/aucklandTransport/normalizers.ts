@@ -63,6 +63,7 @@ export function convertATVehicleToOutputVehicle(route: ATRoute, vehicle: ATVehic
 
         snapPosition: vehicle.snapPosition,
         snapDeviation: vehicle.snapDeviation,
+        snapBearing: vehicle.snapBearing,
     };
 }
 

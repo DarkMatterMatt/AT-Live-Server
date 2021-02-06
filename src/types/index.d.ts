@@ -67,6 +67,7 @@ interface ATVehicle {
     occupancyStatus: number;
     snapPosition: LatLng;
     snapDeviation: number;
+    snapBearing: number;
 }
 
 interface ATRoute {

@@ -2,7 +2,14 @@
  * Code TypeScriptified from source provided by Lachlan Davidson (github.com/lachlan2k)
  */
 
-import { clamp } from "./number";
+import { clamp, radiansToDegrees } from "./number";
+
+interface ProjectPointOnPathResult {
+    /** Closest position on path */
+    point: Point;
+    /** Point lies on the line between these indices of path */
+    lineIndices: [number, number];
+}
 
 /**
  * Return distance**2 between two points.
@@ -71,18 +78,23 @@ function projectPointOnLine(line: [Point, Point], point: Point): Point {
  * @param path path to find closest position on
  * @param anchor index of anchor point
  * @param point target point
- * @returns closestPosition
  */
-function projectPointOnPath(path: Point[], anchor: number, point: Point): Point {
+function projectPointOnPath(path: Point[], anchor: number, point: Point): ProjectPointOnPathResult {
     if (anchor === 0) {
         const line: [Point, Point] = [path[0], path[1]];
         const intersectPoint = projectPointOnLine(line, point);
 
         // it's behind the path, limit to the start
         if (pointIsOutOfBounds(line, intersectPoint)) {
-            return path[0];
+            return {
+                point: path[0],
+                lineIndices: [0, 0],
+            };
         }
-        return intersectPoint;
+        return {
+            point: intersectPoint,
+            lineIndices: [0, 1],
+        };
     }
 
     if (anchor === path.length - 1) {
@@ -91,9 +103,15 @@ function projectPointOnPath(path: Point[], anchor: number, point: Point): Point 
 
         // it's past the end of the path, limit to the end
         if (pointIsOutOfBounds(line, intersectPoint)) {
-            return path[path.length - 1];
+            return {
+                point: path[path.length - 1],
+                lineIndices: [path.length - 1, path.length - 1],
+            };
         }
-        return intersectPoint;
+        return {
+            point: intersectPoint,
+            lineIndices: [path.length - 1, path.length - 2],
+        };
     }
 
     const candidateA: [Point, Point] = [path[anchor - 1], path[anchor]];
@@ -107,22 +125,37 @@ function projectPointOnPath(path: Point[], anchor: number, point: Point): Point 
 
     if (aIsOOB && bIsOOB) {
         // anchor is closest
-        return path[anchor];
+        return {
+            point: path[anchor],
+            lineIndices: [anchor, anchor],
+        };
     }
     if (aIsOOB) {
-        return bIntersect;
+        return {
+            point: bIntersect,
+            lineIndices: [anchor, anchor + 1],
+        };
     }
     if (bIsOOB) {
-        return aIntersect;
+        return {
+            point: aIntersect,
+            lineIndices: [anchor - 1, anchor],
+        };
     }
 
     const aDist = getDistSquared(point, aIntersect);
     const bDist = getDistSquared(point, bIntersect);
 
     if (aDist <= bDist) {
-        return aIntersect;
+        return {
+            point: aIntersect,
+            lineIndices: [anchor - 1, anchor],
+        };
     }
-    return bIntersect;
+    return {
+        point: bIntersect,
+        lineIndices: [anchor, anchor + 1],
+    };
 }
 
 /**
@@ -152,7 +185,16 @@ function getClosestPoint(path: Point[], point: Point): number {
  * @param point target point
  * @returns closestPosition
  */
-export function getClosestPointOnPath(path: Point[], point: Point): Point {
+export function getClosestPointOnPath(path: Point[], point: Point): ProjectPointOnPathResult {
     const anchor = getClosestPoint(path, point);
     return projectPointOnPath(path, anchor, point);
+}
+
+/**
+ * Calculates angle from `a` to `b`. 0 to 360 degrees, clockwise from North.
+ */
+export function getAngleOfLine(a: Point, b: Point): number {
+    const rad = Math.atan2(b.y - a.y, b.x - a.x);
+    const deg = radiansToDegrees(rad);
+    return deg >= 0 ? deg : deg + 360;
 }
