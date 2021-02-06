@@ -15,7 +15,7 @@ routes.set("status", new GetRoute("status")
         return route.finish("success", {
             websocketUpdates:     aucklandTransportData.webSocketActive(),
             livePollingUpdates:   aucklandTransportData.livePollingActive(),
-            lastMessageTimestamp: aucklandTransportData.lastMessageTimestamp(),
+            lastVehicleUpdate:    aucklandTransportData.getLastVehicleUpdate(),
             activeWebSockets:     activeWebSockets.size,
         });
     }));

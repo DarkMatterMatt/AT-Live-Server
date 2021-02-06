@@ -27,7 +27,7 @@ class AucklandTransportData {
     private _cache: Cache;
     private _pLimit: Limit;
     private ws: ATWebSocket;
-    private _lastMessageTimestamp: number;
+    private lastVehicleUpdate: number;
     private _livePollingInterval: null | ReturnType<typeof setInterval> = null;
     private _livePollingIntervalSetting: number;
     private _byShortName = new Map<string, ATRoute>();
@@ -56,7 +56,7 @@ class AucklandTransportData {
         this._currentVersions = [];
         this._cache = new Cache("ATCache", maxCacheSizeInBytes, compressCache);
         this._pLimit = pLimit(maxParallelRequests);
-        this._lastMessageTimestamp = 0;
+        this.lastVehicleUpdate = 0;
 
         // websocket is buggy, poll manually every LIVE_POLLING_INTERVAL if it isn't working
         this._livePollingIntervalSetting = livePollingIntervalSetting;
@@ -86,8 +86,8 @@ class AucklandTransportData {
         return this._livePollingInterval !== null;
     }
 
-    lastMessageTimestamp() {
-        return this._lastMessageTimestamp;
+    getLastVehicleUpdate() {
+        return this.lastVehicleUpdate;
     }
 
     async query(url: string, noCache?: "noCache") {
@@ -165,6 +165,10 @@ class AucklandTransportData {
     }
 
     loadVehiclePosition(unprocessedVehicle: ATVehicleUnprocessed): boolean {
+        if (unprocessedVehicle.lastUpdatedUnix * 1000 > this.lastVehicleUpdate) {
+            this.lastVehicleUpdate = unprocessedVehicle.lastUpdatedUnix * 1000;
+        }
+
         // ignore vehicles more than 2 minutes old
         if (unprocessedVehicle.lastUpdatedUnix * 1000 < Date.now() - OLD_VEHICLE_THRESHOLD) return false;
 
