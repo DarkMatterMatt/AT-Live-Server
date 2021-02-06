@@ -3,22 +3,13 @@ import pLimit, { Limit } from "p-limit";
 import { performance } from "perf_hooks";
 import simplify from "simplify-js";
 import spacetime from "spacetime";
-import { ATWebSocket, convertATShapePointRawToLatLngs, convertATVehicleRawToATVehicleUnprocessed, convertATVehicleToOutputVehicle, convertLatLngsToPolylineLatLngPixels, convertLatLngsToPolylinePoints, isATVehicleRaw } from "~/aucklandTransport";
-import { processVehicle } from "./aucklandTransport/vehicle";
+import { ATWebSocket, convertATShapePointRawToLatLngs, convertATVehicleRawToATVehicleUnprocessed, convertATVehicleToOutputVehicle, convertLatLngsToPolylineLatLngPixels, convertLatLngsToPolylinePoints, isATVehicleRaw, processVehicle, WS_CODE_CLOSE_PLANNED_SHUTDOWN } from "~/aucklandTransport";
 import Cache from "./Cache";
 import { map } from "./helpers";
 import logger from "./logger";
-import { logSnapDeviation } from "./logging";
 
-const WS_CODE_CLOSE_PLANNED_SHUTDOWN = 4000;
-const WS_CODE_CLOSE_NO_RECONNECT = 4001;
-const SLEEP_BEFORE_WS_RECONNECT_503 = 500;
-const SLEEP_BEFORE_WS_RECONNECT_502 = 60 * 1000;
-const SLEEP_BEFORE_WS_RECONNECT_GENERIC = 500;
 const LOOK_FOR_UPDATES_INTERVAL = 5 * 60 * 1000;
 const REMOVE_OLD_VEHICLE_INTERVAL = 10 * 1000;
-const WS_HEALTH_CHECK_INTERVAL = 120 * 1000;
-const WS_HEALTHY_IF_MESSAGE_WITHIN = 15 * 1000;
 const OLD_VEHICLE_THRESHOLD = 120 * 1000;
 const DEFAULT_LIVE_POLLING_INTERVAL = 25 * 1000;
 const POLYLINE_SIMPLIFICATION = 0.000005; // simplify-js epsilon
@@ -181,8 +172,6 @@ class AucklandTransportData {
         if (vehicle == null) {
             return false;
         }
-
-        logSnapDeviation(vehicle.snapDeviation);
 
         route.vehicles.set(vehicle.vehicleId, vehicle);
         const outputVehicle = convertATVehicleToOutputVehicle(route, vehicle);
