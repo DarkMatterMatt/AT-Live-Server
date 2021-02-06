@@ -109,10 +109,11 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, out
         }));
     });
 
-    app.listen(C.port, token => {
+    const port = C.port || 9001;
+    app.listen(port, token => {
         if (token) {
             listenSocket = token;
-            logger.info(`Listening to port ${C.port}`);
+            logger.info(`Listening to port ${port}`);
         }
     });
 })();
