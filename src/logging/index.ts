@@ -4,6 +4,7 @@ import logger from "~/logger";
 
 export * from "./snapDeviation";
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const MINUTE = 60 * 1000;
 
 const enabledFunctions = new Map<Function, ReturnType<typeof setInterval>>();
