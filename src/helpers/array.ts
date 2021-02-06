@@ -55,3 +55,10 @@ export function removeAll<T>(arr: T[], value: T): void {
         }
     }
 }
+
+export function isEqual<T>(arr1: T[], arr2: T[]): boolean {
+    if (arr1.length !== arr2.length) {
+        return false;
+    }
+    return arr1.every((val, i) => val === arr2[i]);
+}
