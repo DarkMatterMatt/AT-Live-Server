@@ -1,13 +1,21 @@
 import { getAngleOfLine, getClosestPointOnPath, isPointEqual } from "~/helpers";
 import logger from "~/logger";
 import { mercatorProjection } from "~/MercatorProjection";
-import { convertPixelToLatLngPixel } from "./normalizers";
+import { convertLatLngToLatLngPixel, convertPixelToLatLngPixel } from "./normalizers";
 
 export function snapVehicleToPolyline(polyline: PolylineLatLngPixel[], vehicle: LatLng): {
     snapPosition: LatLngPixel;
     snapDist: number;
     snapBearing: number;
 } {
+    if (polyline.length < 2) {
+        return {
+            snapPosition: convertLatLngToLatLngPixel(vehicle),
+            snapDist: 999999,
+            snapBearing: -1,
+        };
+    }
+
     const vehiclePixel = mercatorProjection.fromLatLngToPoint(vehicle);
     const { point: snapPixel, lineIndices } = getClosestPointOnPath(polyline, vehiclePixel);
     const snapPosition = convertPixelToLatLngPixel(snapPixel);
