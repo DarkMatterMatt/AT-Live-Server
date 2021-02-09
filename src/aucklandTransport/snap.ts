@@ -20,7 +20,7 @@ export function snapVehicleToPolyline(polyline: PolylineLatLngPixel[], vehicle: 
     // can't calculate bearing between two identical points
     while (isPointEqual(polyline[lineIndices[0]],  polyline[lineIndices[1]])) {
         // try calculate bearing to next point on the line
-        if (lineIndices[1] < polyline.length) {
+        if (lineIndices[1] < polyline.length - 1) {
             lineIndices[1]++;
         }
         // try calculate bearing from previous point on the line
