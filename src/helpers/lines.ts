@@ -2,6 +2,7 @@
  * Code TypeScriptified from source provided by Lachlan Davidson (github.com/lachlan2k)
  */
 
+import logger from "~/logger";
 import { clamp, radiansToDegrees } from "./number";
 
 interface ProjectPointOnPathResult {
@@ -80,6 +81,18 @@ function projectPointOnLine(line: [Point, Point], point: Point): Point {
  * @param point target point
  */
 function projectPointOnPath(path: Point[], anchor: number, point: Point): ProjectPointOnPathResult {
+    if (path.length === 0) {
+        logger.error("projectPointOnPath", "invalid path", { path, anchor, point });
+        throw new Error("projectPointOnPath, invalid path");
+    }
+
+    if (path.length === 1) {
+        return {
+            point: path[0],
+            lineIndices: [0, 0],
+        };
+    }
+
     if (anchor === 0) {
         const line: [Point, Point] = [path[0], path[1]];
         const intersectPoint = projectPointOnLine(line, point);
@@ -97,20 +110,21 @@ function projectPointOnPath(path: Point[], anchor: number, point: Point): Projec
         };
     }
 
-    if (anchor === path.length - 1) {
-        const line: [Point, Point] = [path[path.length - 1], path[path.length - 2]];
+    const lastIndex = path.length - 1;
+    if (anchor === lastIndex) {
+        const line: [Point, Point] = [path[lastIndex], path[lastIndex - 1]];
         const intersectPoint = projectPointOnLine(line, point);
 
         // it's past the end of the path, limit to the end
         if (pointIsOutOfBounds(line, intersectPoint)) {
             return {
-                point: path[path.length - 1],
-                lineIndices: [path.length - 1, path.length - 1],
+                point: path[lastIndex],
+                lineIndices: [lastIndex, lastIndex],
             };
         }
         return {
             point: intersectPoint,
-            lineIndices: [path.length - 1, path.length - 2],
+            lineIndices: [lastIndex, lastIndex - 1],
         };
     }
 
