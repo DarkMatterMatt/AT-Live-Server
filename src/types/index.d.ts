@@ -50,6 +50,7 @@ interface PolylineLatLng extends LatLng {
 interface PolylineLatLngPixel extends PolylineLatLng, LatLngPixel {}
 
 interface ATVehicleUnprocessed {
+    bearing: number;
     routeId: string;
     directionId: 0 | 1;
     lastUpdatedUnix: number;
@@ -59,6 +60,7 @@ interface ATVehicleUnprocessed {
 }
 
 interface ATVehicle {
+    bearing: number;
     routeId: string;
     directionId: 0 | 1;
     lastUpdated: number;

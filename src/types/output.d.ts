@@ -15,6 +15,8 @@ interface OutputVehicle {
     lastUpdated: number;
     /** Unprocessed reported GPS location */
     position: LatLng;
+    /** Unprocessed reported vehicle bearing */
+    bearing: number;
     vehicleId: string;
     occupancyStatus: number;
 

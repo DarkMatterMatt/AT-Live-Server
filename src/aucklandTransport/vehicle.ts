@@ -37,6 +37,7 @@ export function processVehicle(routesById: Map<string, ATRoute>, vehicle: ATVehi
     } = snapVehicleToPolyline(route.polylines[vehicle.directionId], vehicle.position);
 
     const processed: ATVehicle = {
+        bearing: vehicle.bearing,
         routeId: vehicle.routeId,
         directionId: vehicle.directionId,
         lastUpdated,

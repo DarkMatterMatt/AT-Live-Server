@@ -16,6 +16,7 @@ const OCCUPANCY_STATUSES = [
 
 export function convertATVehicleRawToATVehicleUnprocessed(data: ATVehicleRaw): ATVehicleUnprocessed {
     return {
+        bearing: Number.parseFloat(data.position.bearing) || -1,
         directionId: data.trip.direction_id,
         lastUpdatedUnix: data.timestamp,
         occupancyStatus: data.occupancy_status,
@@ -30,6 +31,7 @@ export function convertATVehicleRawToATVehicleUnprocessed(data: ATVehicleRaw): A
 
 export function convertATVehicleRawWSToATVehicleUnprocessed(data: ATVehicleRawWS): ATVehicleUnprocessed {
     return {
+        bearing: data.position.bearing,
         directionId: data.trip.directionId,
         lastUpdatedUnix: Number.parseInt(data.timestamp),
         occupancyStatus: OCCUPANCY_STATUSES.indexOf(data.occupancyStatus),
@@ -57,6 +59,7 @@ export function convertATVehicleToOutputVehicle(route: ATRoute, vehicle: ATVehic
         lastUpdatedUnix: vehicle.lastUpdated / 1000,
         lastUpdated: vehicle.lastUpdated,
 
+        bearing: vehicle.bearing,
         position: vehicle.position,
         vehicleId: vehicle.vehicleId,
         occupancyStatus: vehicle.occupancyStatus,
