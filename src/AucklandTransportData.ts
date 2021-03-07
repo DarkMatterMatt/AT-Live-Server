@@ -98,13 +98,32 @@ class AucklandTransportData {
             }
         }
 
-        const result = await this._pLimit(() => fetch(this._baseUrl + url, {
+        const response = await this._pLimit(() => fetch(this._baseUrl + url, {
             headers: { "Ocp-Apim-Subscription-Key": this._key },
-        })).then(r => r.json());
+        }));
 
+        // get response as a string (don't parse JSON yet, because sometimes AT returns HTML)
+        const rawResult = await response.text();
+        const errorLogData = {
+            status: response.status,
+            statusText: response.statusText,
+            text: rawResult,
+        };
+
+        // parse JSON from response
+        let result: ATQueryResult;
+        try {
+            result = JSON.parse(rawResult) as ATQueryResult;
+        }
+        catch (err) {
+            logger.error("AucklandTransportData#query", `Failed fetching ${url}`, errorLogData);
+            throw new Error(`Failed fetching ${url}: invalid JSON received`);
+        }
+
+        // check if response was successful
         if (result.status !== "OK") {
-            logger.error(`Failed fetching ${url}:`, result);
-            throw new Error(`Failed fetching ${url}: ${result.error || result.message}`);
+            logger.error("AucklandTransportData#query", `Failed fetching ${url}:`, errorLogData);
+            throw new Error(`Failed fetching ${url}: ${result.error.message}`);
         }
 
         if (noCache !== "noCache") {

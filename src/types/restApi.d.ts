@@ -1,3 +1,20 @@
+interface ATQuerySuccess {
+    status: "OK";
+    response: any;
+    error: null;
+}
+
+interface ATQueryError {
+    status: "Error";
+    response: null;
+    error: {
+        name: string;
+        message: string;
+    };
+}
+
+type ATQueryResult = ATQuerySuccess | ATQueryError;
+
 interface ATTripRaw {
     route_id: string;
     service_id: string;
