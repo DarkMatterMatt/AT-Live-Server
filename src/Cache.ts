@@ -1,11 +1,14 @@
-const  { LocalStorage } = require("node-localstorage");
-const LZString = require("lz-string");
-const { isTruthy } = require("./TruthyUserInput");
-const logger = require("./logger");
+import  { LocalStorage } from "node-localstorage";
+import LZString from "lz-string";
+import { isTruthy } from "./TruthyUserInput";
+import logger from "./logger";
 
 /** localStorage cache for JSON serialisable objects */
 class Cache {
-    constructor(cacheName, maxSizeInBytes, compress) {
+    private _localStorage: LocalStorage;
+    private compress: boolean;
+
+    constructor(cacheName: string, maxSizeInBytes: number, compress: boolean) {
         this._localStorage = new LocalStorage(`./localStorage/${cacheName}`, maxSizeInBytes);
         this.compress = isTruthy(compress);
 
@@ -17,7 +20,7 @@ class Cache {
         this._localStorage.setItem("_cache_option_compress", JSON.stringify(this.compress));
     }
 
-    store(k, v) {
+    store(k: string, v: any): void {
         let tmp = JSON.stringify(v);
         if (this.compress) {
             tmp = LZString.compressToBase64(tmp);
@@ -30,7 +33,7 @@ class Cache {
         }
     }
 
-    load(k) {
+    load(k: string): any {
         let tmp = this._localStorage.getItem(k);
         if (tmp === null) {
             return null;
@@ -41,13 +44,13 @@ class Cache {
         return JSON.parse(tmp);
     }
 
-    remove(k) {
+    remove(k: string): void {
         this._localStorage.removeItem(k);
     }
 
-    clear() {
+    clear(): void {
         this._localStorage.clear();
     }
 }
 
-module.exports = Cache;
+export default Cache;

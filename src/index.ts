@@ -1,9 +1,12 @@
-const uWS = require("uWebSockets.js");
-const AucklandTransportData = require("./AucklandTransportData");
-const C = require("./config");
-const webSocketRoutes = require("./webSocketRoutes");
-const getRoutes = require("./getRoutes");
-const logger = require("./logger");
+import uWS, { DISABLED, SHARED_COMPRESSOR, us_listen_socket, WebSocket } from "uWebSockets.js";
+import AucklandTransportData from "./AucklandTransportData";
+import C from "./config";
+import webSocketRoutes from "./webSocketRoutes";
+import getRoutes from "./getRoutes";
+import logger from "./logger";
+import { URLSearchParams } from "url";
+import { TextDecoder } from "util";
+import { WSOutput } from "~/output";
 
 const WS_CODE_CLOSE_GOING_AWAY = 1001;
 
@@ -17,12 +20,14 @@ process.on("uncaughtException", err => {
 
 const app = C.useSSL ? uWS.SSLApp(C.ssl) : uWS.App();
 
+const output = new WSOutput(app);
+
 /* Subscribe / publish by route short names */
-const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app);
+const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, output);
 
 (async () => {
-    const activeWebSockets = new Set();
-    let listenSocket;
+    const activeWebSockets = new Set<WebSocket>();
+    let listenSocket: us_listen_socket;
 
     await aucklandTransportData.lookForUpdates("forceLoad");
     aucklandTransportData.startAutoUpdates();
@@ -30,7 +35,6 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
     process.on("SIGINT", () => {
         logger.info("Caught interrupt signal");
         aucklandTransportData.stopAutoUpdates();
-        aucklandTransportData.stopWebSocket();
         for (const ws of activeWebSockets.values()) {
             ws.end(WS_CODE_CLOSE_GOING_AWAY, "Server is shutting down");
         }
@@ -40,6 +44,8 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
 
     app.ws("/v1/websocket", {
         ...C.ws.v1.opts,
+
+        compression: C.ws.v1.opts.compression ? SHARED_COMPRESSOR : DISABLED,
 
         open: ws => {
             activeWebSockets.add(ws);
@@ -59,7 +65,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
             }
             let json;
             try {
-                json = JSON.parse(Buffer.from(message));
+                json = JSON.parse(new TextDecoder("utf8").decode(message));
             }
             catch (e) {
                 ws.send(JSON.stringify({
@@ -70,7 +76,7 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
             }
 
             const routeName = json.route;
-            if (!routeName) {
+            if (typeof routeName !== "string" || routeName === "") {
                 ws.send(JSON.stringify({
                     status:  "error",
                     message: "Missing 'route' field.",
@@ -79,13 +85,6 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
             }
 
             const route = webSocketRoutes.get(routeName) || webSocketRoutes.get("default");
-            const invalidParams = route.invalidParams(json);
-            if (invalidParams) {
-                route.finish("error", {
-                    message: invalidParams,
-                });
-                return;
-            }
             route.execute({ ws, json, aucklandTransportData, activeWebSockets });
         },
     });
@@ -94,13 +93,6 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
         const routeName = req.getParameter(0);
         const params = new URLSearchParams(req.getQuery());
         const route = getRoutes.get(routeName) || getRoutes.get("default");
-        const invalidParams = route.invalidParams(params);
-        if (invalidParams) {
-            res.send(route.jsonStringify("error", {
-                message: invalidParams,
-            }));
-            return;
-        }
         route.execute({ res, req, params, aucklandTransportData, activeWebSockets });
     });
 
@@ -117,10 +109,11 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, app
         }));
     });
 
-    app.listen(C.port, token => {
+    const port = C.port || 9001;
+    app.listen(port, token => {
         if (token) {
             listenSocket = token;
-            logger.info(`Listening to port ${C.port}`);
+            logger.info(`Listening to port ${port}`);
         }
     });
 })();

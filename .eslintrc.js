@@ -4,51 +4,58 @@ module.exports = {
         es6: true,
         node: true,
     },
-    extends: [
-        'airbnb-base',
+    parser: "@typescript-eslint/parser",
+    plugins: [
+        "@typescript-eslint",
     ],
-    globals: {
-        Atomics: 'readonly',
-        SharedArrayBuffer: 'readonly',
-    },
+    extends: [
+        "eslint:recommended",
+        "plugin:@typescript-eslint/eslint-recommended",
+        "plugin:@typescript-eslint/recommended",
+    ],
     parserOptions: {
         ecmaVersion: 2018,
     },
     rules: {
-        "arrow-parens": "off",
-        "brace-style": ["warn", "stroustrup"],
-        "comma-dangle": ["warn", {
+        "array-bracket-spacing": ["error", "never"],
+        "arrow-spacing": "error",
+        "brace-style": ["error", "stroustrup"],
+        "comma-dangle": ["error", {
             "arrays": "always-multiline",
             "objects": "always-multiline",
             "imports": "always-multiline",
             "exports": "always-multiline",
             "functions": "never",
         }],
-        "indent": ["warn", 4, {
-            "SwitchCase": 1
+        "eqeqeq": ["error", "smart"],
+        "@typescript-eslint/explicit-module-boundary-types": "off",
+        "@typescript-eslint/explicit-function-return-type": "off",
+        "@typescript-eslint/indent": ["warn", 4, {
+            "SwitchCase": 1,
         }],
-        "key-spacing": ["warn", {
-            "mode": "minimum",
-            "align": "value",
-        }],
+        "keyword-spacing": "error",
         "max-len": ["warn", {
-            "code": 120
+            "code": 120,
+            "comments": 100,
+            "ignorePattern": "^\\s*import.*from.*;\\s*$", // ignore long imports
         }],
-        "no-bitwise": "off",
-        "no-console": "off",
-        "no-continue": "off",
-        "no-multi-spaces": "off",
-        "no-plusplus": ["error", {
-            "allowForLoopAfterthoughts": true
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/no-inferrable-types": ["warn", {
+            "ignoreParameters": true,
         }],
-        "no-restricted-syntax": "off",
-        "no-underscore-dangle": "off",
-        "no-unused-vars": ["warn", {
-            "argsIgnorePattern": "^_+$",
+        "no-mixed-operators": "error",
+        "no-trailing-spaces": "error",
+        "@typescript-eslint/no-unused-vars": ["error", {
+            "argsIgnorePattern": "_+",
+            "varsIgnorePattern": "_+",
         }],
-        "object-curly-newline": ["warn", {
-            "consistent": true
+        "object-curly-spacing": ["error", "always"],
+        "operator-linebreak": ["error", "after"],
+        "prefer-destructuring": "error",
+        "prefer-template": "error",
+        "quotes": ["error", "double", {
+            "avoidEscape": true,
         }],
-        "quotes": ["warn", "double"],
+        "semi": ["error", "always"],
     },
 };

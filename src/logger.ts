@@ -1,14 +1,14 @@
-const chalk = require("chalk");
-const { createLogger, format, transports } = require("winston");
-const { inspect } = require("util");
-const { SPLAT } = require("triple-beam");
-const jsonStringify_ = require("fast-safe-stringify");
-const C = require("./config");
-require("winston-daily-rotate-file");
+import chalk from "chalk";
+import { createLogger, format, transports } from "winston";
+import { inspect } from "util";
+import { SPLAT } from "triple-beam";
+import jsonStringify_ from "fast-safe-stringify";
+import C from "./config";
+import "winston-daily-rotate-file";
 
 if (!C.logger) C.logger = {};
 
-const colors = C.logger.colors || {
+const colors: Record<string, any> = C.logger.colors || {
     error:   "redBright",
     warn:    "yellowBright",
     info:    "greenBright",
@@ -16,9 +16,9 @@ const colors = C.logger.colors || {
     verbose: "cyanBright",
 };
 
-const isPrimitive = val => val === null || (typeof val !== "object" && typeof val !== "function");
+const isPrimitive = (val: any) => val === null || (typeof val !== "object" && typeof val !== "function");
 
-const formatWithInspect = val => {
+const formatWithInspect = (val: any): string => {
     if (typeof val === "string") {
         return val;
     }
@@ -26,24 +26,22 @@ const formatWithInspect = val => {
     return newLine + inspect(val, { depth: null, colors: true });
 };
 
-const colorize = (color, s) => {
+export const colorize = (color: string, s: string): string => {
     if (!color) return s;
-    if (!chalk.bold[color]) throw new Error(`Invalid console text color: '${color}'`);
-    return chalk.bold[color](s);
+    // Chalk is designed to be indexed by a string
+    const bold = (chalk.bold as unknown) as Record<string, (s: string) => string>;
+    if (typeof bold[color] !== "function") throw new Error(`Invalid console text color: '${color}'`);
+    return bold[color](s);
 };
 
-const jsonStringifyErrors = (key, value) => {
+const jsonStringifyErrors = (key: string, value: any) => {
     if (value instanceof Error) {
-        const error = {};
-        Object.getOwnPropertyNames(value).forEach(k => {
-            error[k] = value[k];
-        });
-        return error;
+        return Object.fromEntries(Object.entries(value));
     }
     return value;
 };
 
-const jsonStringify = obj => jsonStringify_(obj, jsonStringifyErrors);
+const jsonStringify = (obj: any) => jsonStringify_(obj, jsonStringifyErrors);
 
 const logger = createLogger(C.logger.opts || {
     transports: [
@@ -55,10 +53,12 @@ const logger = createLogger(C.logger.opts || {
                 format.timestamp(),
                 format.errors({ stack: true }),
                 format.printf(info => {
-                    const splatArgs = info[SPLAT];
+                    // SPLAT is always a valid index for TransformableInfo
+                    const splatArgs = info[(SPLAT as unknown) as string];
                     if (splatArgs) {
-                        // eslint-disable-next-line no-param-reassign
-                        info.message = [info.message].concat(splatArgs);
+                        const messagesArr = [info.message].concat(splatArgs);
+                        // this is NOT a string but jsonStringify isn't fussy
+                        info.message = ((messagesArr as unknown) as string);
                     }
                     return jsonStringify(info);
                 })
@@ -71,7 +71,8 @@ const logger = createLogger(C.logger.opts || {
                 format.printf(info => {
                     const coloredLevel = colorize(colors[info.level], info.level.padEnd(7));
                     const msg = formatWithInspect(info.message);
-                    const splatArgs = info[SPLAT] || [];
+                    // SPLAT is always a valid index for TransformableInfo
+                    const splatArgs = info[(SPLAT as unknown) as string] || [];
                     const rest = splatArgs.map(formatWithInspect).join(" ");
                     return `${info.timestamp}  ${coloredLevel}  ${msg} ${rest}`;
                 })
@@ -80,5 +81,4 @@ const logger = createLogger(C.logger.opts || {
     ],
 });
 
-module.exports = logger;
-module.exports.colorize = colorize;
+export default logger;
