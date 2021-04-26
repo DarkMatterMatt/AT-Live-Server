@@ -66,6 +66,9 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, out
             let json;
             try {
                 json = JSON.parse(new TextDecoder("utf8").decode(message));
+                if (typeof json !== "object") {
+                    throw new Error("Expected an object.");
+                }
             }
             catch (e) {
                 ws.send(JSON.stringify({
