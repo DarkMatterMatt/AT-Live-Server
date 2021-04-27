@@ -27,13 +27,13 @@ routes.set("subscribe", new WebSocketRoute("subscribe")
             });
         }
 
-        if (!aucklandTransportData.hasRouteByShortName(shortName)) {
+        if (shortName !== "#" && !aucklandTransportData.hasRouteByShortName(shortName)) {
             return route.finish("error", {
                 message: `Unknown route with short name '${shortName}'.`,
             });
         }
 
-        ws.subscribe(`${shortName}`);
+        ws.subscribe(shortName);
         return route.finish("success", {
             message: `Subscribed to '${shortName}'.`,
             shortName,
