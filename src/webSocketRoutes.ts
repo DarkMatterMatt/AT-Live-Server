@@ -51,7 +51,7 @@ routes.set("unsubscribe", new WebSocketRoute("unsubscribe")
             });
         }
 
-        if (!aucklandTransportData.hasRouteByShortName(shortName)) {
+        if (shortName !== "#" && !aucklandTransportData.hasRouteByShortName(shortName)) {
             return route.finish("error", {
                 message: `Unknown route with short name '${shortName}'.`,
             });
