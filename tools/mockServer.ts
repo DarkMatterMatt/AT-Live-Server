@@ -10,6 +10,7 @@ import { WSOutput } from "~/output";
 Client settings for OpenGraph preview image generation:
 - Viewport: 1200 x 630
 - Routes: OUT [orange], GULF [blue], 25L [purple], 75 [green], 138 [red]
+  /#N4IgbgpgTgzglgewHYgFwCYA0IoIK4AuEMaA2qSAIwDMAHCJgVHhNgMQCiAnACwCs1AOwgAupgoB5AKoAVBkxbsOANkEBhGqPEgA4lIAyAMXnNWINn0t9DxsRXR99Jxed4AGNwBFqWioL7OZmyUnmocIaJiIDAQBARwSADmJKigACYAhlAA1gCyCGkQaApmMAAWCADuAFoICAC2aABmGQA2MQC+HUA
 
 - Map styles: mapThemes.simpleDark
 - Hide zoom controls
