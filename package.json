@@ -1,6 +1,6 @@
 {
     "name": "at-live-server",
-    "version": "0.4.6",
+    "version": "0.4.7",
     "description": "Intermediate server to provide simplified live data for the AT Live Client",
     "main": "dist/index.js",
     "scripts": {
