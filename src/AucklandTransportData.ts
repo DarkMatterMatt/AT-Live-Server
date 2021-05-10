@@ -123,7 +123,7 @@ class AucklandTransportData {
         // check if response was successful
         if (result.status !== "OK") {
             logger.error("AucklandTransportData#query", `Failed fetching ${url}:`, errorLogData);
-            throw new Error(`Failed fetching ${url}: ${result.error.message}`);
+            throw new Error(`Failed fetching ${url}: ${result.error ? result.error.message : errorLogData.statusText}`);
         }
 
         if (noCache !== "noCache") {

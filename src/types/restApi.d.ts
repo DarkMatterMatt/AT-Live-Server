@@ -7,7 +7,7 @@ interface ATQuerySuccess {
 interface ATQueryError {
     status: "Error";
     response: null;
-    error: {
+    error?: {
         name: string;
         message: string;
     };
