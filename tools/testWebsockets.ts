@@ -30,9 +30,9 @@ function log() {
     const created = websockets.length;
     const open = websockets.filter(w => w[1] > 0).length;
     const closed = websockets.filter(w => w[1] === -1).length;
-    const stalled = websockets.filter(w => w[1] < now - 7500).length;
+    const stalled = websockets.filter(w => w[1] !== -1 && w[1] < now - 7500).length;
 
-    console.log(`Created: ${created}; Open: ${open}; Closed: ${closed}; Stalled: ${stalled};`);
+    console.log(`${WS_URL}; Created: ${created}; Open: ${open}; Closed: ${closed}; Stalled: ${stalled};`);
 }
 
 setInterval(log, 2000);
