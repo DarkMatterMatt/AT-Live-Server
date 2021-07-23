@@ -34,6 +34,14 @@ const aucklandTransportData = new AucklandTransportData(C.aucklandTransport, out
 
     process.on("SIGINT", () => {
         logger.info("Caught interrupt signal");
+        logger.debug("Current status", {
+            websocketUpdates: aucklandTransportData.webSocketActive(),
+            livePollingUpdates: aucklandTransportData.livePollingActive(),
+            lastVehicleUpdate : aucklandTransportData.getLastVehicleUpdate(),
+            activeWebSockets: activeWebSockets.size,
+            version: process.env.npm_package_version,
+        });
+
         aucklandTransportData.stopAutoUpdates();
         for (const ws of activeWebSockets.values()) {
             ws.end(WS_CODE_CLOSE_GOING_AWAY, "Server is shutting down");
