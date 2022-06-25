@@ -37,7 +37,7 @@
         "fast-safe-stringify": "^2.0.8",
         "lz-string": "^1.4.4",
         "module-alias": "^2.2.2",
-        "node-fetch": "^2.6.1",
+        "node-fetch": "^2.6.7",
         "node-localstorage": "^2.2.1",
         "p-limit": "^3.1.0",
         "simplify-js": "^1.2.4",
